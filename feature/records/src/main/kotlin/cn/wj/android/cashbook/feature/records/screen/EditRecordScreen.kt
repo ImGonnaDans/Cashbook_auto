@@ -29,10 +29,13 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -62,13 +65,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
@@ -82,9 +88,7 @@ import cn.wj.android.cashbook.core.common.Symbol
 import cn.wj.android.cashbook.core.common.ext.completeZero
 import cn.wj.android.cashbook.core.common.ext.withCNY
 import cn.wj.android.cashbook.core.common.tools.getCompressedBitmap
-import cn.wj.android.cashbook.core.design.component.Calculator
 import cn.wj.android.cashbook.core.design.component.CbAlertDialog
-import cn.wj.android.cashbook.core.design.component.CbFloatingActionButton
 import cn.wj.android.cashbook.core.design.component.CbHorizontalDivider
 import cn.wj.android.cashbook.core.design.component.CbIconButton
 import cn.wj.android.cashbook.core.design.component.CbModalBottomSheet
@@ -107,9 +111,11 @@ import cn.wj.android.cashbook.core.ui.LocalProgressDialogController
 import cn.wj.android.cashbook.core.ui.R
 import cn.wj.android.cashbook.core.ui.expand.text
 import cn.wj.android.cashbook.core.ui.expand.typeColor
+import cn.wj.android.cashbook.feature.records.component.RecordKeypad
 import cn.wj.android.cashbook.feature.records.dialog.ImagePreviewDialog
 import cn.wj.android.cashbook.feature.records.enums.EditRecordBookmarkEnum
 import cn.wj.android.cashbook.feature.records.enums.EditRecordBottomSheetEnum
+import cn.wj.android.cashbook.feature.records.enums.KeypadTarget
 import cn.wj.android.cashbook.feature.records.model.DateTimePickerModel
 import cn.wj.android.cashbook.feature.records.model.ImageViewModel
 import cn.wj.android.cashbook.feature.records.model.rememberRecordImageModel
@@ -123,6 +129,9 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import java.io.File
 import java.util.Calendar
+
+/** 类型区最小高度（避免小屏时被键盘与标题栏挤压成 0 高） */
+private val TypeAreaMinHeight = 160.dp
 
 /**
  * 编辑记录
@@ -176,11 +185,8 @@ internal fun EditRecordRoute(
         onTypeCategorySelect = viewModel::updateTypeCategory,
         bottomSheetType = viewModel.bottomSheetType,
         onRequestDismissBottomSheet = viewModel::dismissBottomSheet,
-        onAmountClick = viewModel::displayAmountSheet,
         onAmountChange = viewModel::updateAmount,
-        onChargesClick = viewModel::displayChargesSheet,
         onChargesChange = viewModel::updateCharge,
-        onConcessionsClick = viewModel::displayConcessions,
         onConcessionsChange = viewModel::updateConcessions,
         onImageItemClick = viewModel::showImagePreviewDialog,
         onImageListSave = viewModel::updateImageData,
@@ -255,11 +261,8 @@ internal fun EditRecordRoute(
  * @param onTypeCategorySelect 记录大类修改回调
  * @param bottomSheetType 底部抽屉类型
  * @param onRequestDismissBottomSheet 隐藏底部抽屉
- * @param onAmountClick 金额点击回调
  * @param onAmountChange 金额变化回调
- * @param onChargesClick 手续费点击回调
  * @param onChargesChange 手续费变化回调
- * @param onConcessionsClick 优惠点击回调
  * @param onConcessionsChange 优惠变化回调
  * @param typeListContent 类型列表布局，参数：(头布局, 脚布局) -> [Unit]
  * @param onRemarkChange 备注变化回调
@@ -289,11 +292,8 @@ internal fun EditRecordScreen(
     onTypeCategorySelect: (RecordTypeCategoryEnum) -> Unit,
     bottomSheetType: EditRecordBottomSheetEnum,
     onRequestDismissBottomSheet: () -> Unit,
-    onAmountClick: () -> Unit,
     onAmountChange: (String) -> Unit,
-    onChargesClick: () -> Unit,
     onChargesChange: (String) -> Unit,
-    onConcessionsClick: () -> Unit,
     onRelatedRecordClick: () -> Unit,
     onConcessionsChange: (String) -> Unit,
     onImageItemClick: (List<ImageViewModel>, Int) -> Unit,
@@ -338,6 +338,25 @@ internal fun EditRecordScreen(
         }
     }
 
+    // 常驻键盘状态：当前编辑目标 + 表达式（纯 UI 状态，不进 ViewModel）
+    val successState = uiState as? EditRecordUiState.Success
+    var keypadTarget by remember { mutableStateOf(KeypadTarget.AMOUNT) }
+    val keypadTargetValue = when (keypadTarget) {
+        KeypadTarget.AMOUNT -> successState?.amountText.orEmpty()
+        KeypadTarget.CHARGES -> successState?.chargesText.orEmpty()
+        KeypadTarget.CONCESSIONS -> successState?.concessionsText.orEmpty()
+    }
+    var keypadText by remember(keypadTarget, keypadTargetValue) { mutableStateOf(keypadTargetValue) }
+    // 备注等系统输入法弹出时收起自定义键盘，避免双层键盘遮挡
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val keypadTargetLabel = stringResource(
+        id = when (keypadTarget) {
+            KeypadTarget.AMOUNT -> R.string.amount
+            KeypadTarget.CHARGES -> R.string.charges
+            KeypadTarget.CONCESSIONS -> R.string.concessions
+        },
+    )
+
     CbScaffold(
         modifier = modifier,
         topBar = {
@@ -345,16 +364,24 @@ internal fun EditRecordScreen(
                 uiState = uiState,
                 selectedTab = selectedTypeCategory,
                 onTabSelected = onTypeCategorySelect,
+                onSaveClick = onSaveClick,
                 onBackClick = onBackClick,
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            if (uiState is EditRecordUiState.Success) {
-                CbFloatingActionButton(
-                    onClick = onSaveClick,
-                    content = {
-                        Icon(imageVector = CbIcons.SaveAs, contentDescription = stringResource(id = R.string.cd_confirm))
+        bottomBar = {
+            if (successState != null && !imeVisible) {
+                RecordKeypad(
+                    targetLabel = keypadTargetLabel,
+                    expression = keypadText,
+                    primaryColor = selectedTypeCategory.typeColor,
+                    onExpressionChange = { keypadText = it },
+                    onConfirmClick = {
+                        when (keypadTarget) {
+                            KeypadTarget.AMOUNT -> onAmountChange(keypadText)
+                            KeypadTarget.CHARGES -> onChargesChange(keypadText)
+                            KeypadTarget.CONCESSIONS -> onConcessionsChange(keypadText)
+                        }
                     },
                 )
             }
@@ -374,22 +401,14 @@ internal fun EditRecordScreen(
                                 true
                             },
                         ),
-                        dragHandle = if (bottomSheetType.isCalculator) {
-                            null
-                        } else {
-                            @Composable {
-                                BottomSheetDefaults.DragHandle(modifier = Modifier.statusBarsPadding())
-                            }
+                        dragHandle = {
+                            BottomSheetDefaults.DragHandle(modifier = Modifier.statusBarsPadding())
                         },
                         content = {
                             EditRecordBottomSheetContent(
                                 bottomSheetType = bottomSheetType,
                                 uiState = uiState,
                                 imageList = imageList,
-                                primaryColor = selectedTypeCategory.typeColor,
-                                onAmountChange = onAmountChange,
-                                onChargesChange = onChargesChange,
-                                onConcessionsChange = onConcessionsChange,
                                 onImageItemClick = onImageItemClick,
                                 onImageListSave = onImageListSave,
                                 selectAssetBottomSheetContent = selectAssetBottomSheetContent,
@@ -477,7 +496,7 @@ internal fun EditRecordScreen(
                     typeListContent = typeListContent,
                     selectedTypeCategory = selectedTypeCategory,
                     typeColor = selectedTypeCategory.typeColor,
-                    onAmountClick = onAmountClick,
+                    onKeypadTargetChange = { keypadTarget = it },
                     onRemarkChange = onRemarkChange,
                     onAssetClick = onAssetClick,
                     onRelatedAssetClick = onRelatedAssetClick,
@@ -486,8 +505,6 @@ internal fun EditRecordScreen(
                     onTagClick = onTagClick,
                     onImageClick = onImageClick,
                     onReimbursableClick = onReimbursableClick,
-                    onChargesClick = onChargesClick,
-                    onConcessionsClick = onConcessionsClick,
                     onRelatedRecordClick = onRelatedRecordClick,
                     onRecordTimeClick = onRecordTimeClick,
                 )
@@ -502,9 +519,7 @@ internal fun EditRecordScreen(
  * @param uiState 界面 UI 状态
  * @param selectedTypeCategory 已选择大类
  * @param typeColor 分类主色调
- * @param onAmountClick 金额点击回调
- * @param onChargesClick 手续费点击回调
- * @param onConcessionsClick 优惠点击回调
+ * @param onKeypadTargetChange 常驻键盘编辑目标切换回调
  * @param typeListContent 类型列表布局，参数：(头布局, 脚布局) -> [Unit]
  * @param onRemarkChange 备注变化回调
  * @param onAssetClick 资产点击回调
@@ -521,7 +536,7 @@ private fun EditRecordScaffoldContent(
     typeListContent: @Composable () -> Unit,
     selectedTypeCategory: RecordTypeCategoryEnum,
     typeColor: Color,
-    onAmountClick: () -> Unit,
+    onKeypadTargetChange: (KeypadTarget) -> Unit,
     onRemarkChange: (String) -> Unit,
     onAssetClick: () -> Unit,
     onRelatedAssetClick: () -> Unit,
@@ -530,8 +545,6 @@ private fun EditRecordScaffoldContent(
     onTagClick: () -> Unit,
     onImageClick: () -> Unit,
     onReimbursableClick: () -> Unit,
-    onChargesClick: () -> Unit,
-    onConcessionsClick: () -> Unit,
     onRelatedRecordClick: () -> Unit,
     onRecordTimeClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -546,30 +559,21 @@ private fun EditRecordScaffoldContent(
 
             is EditRecordUiState.Success -> {
                 Column(
-                    modifier = modifier
-                        .fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxSize()
                         .verticalScroll(state = rememberScrollState())
                         .padding(top = 8.dp)
                         .padding(horizontal = 16.dp),
                 ) {
-                    // 金额显示
+                    // 金额显示（点击切换常驻键盘编辑目标为「金额」）
                     Amount(
                         amount = uiState.amountText,
                         primaryColor = typeColor,
-                        onAmountClick = onAmountClick,
+                        onAmountClick = { onKeypadTargetChange(KeypadTarget.AMOUNT) },
                     )
                     CbHorizontalDivider()
-                    Text(
-                        text = stringResource(id = R.string.record_type),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
-                    )
 
-                    // 类型列表
-                    typeListContent()
-
-                    // 备注文本
+                    // 备注信息（位于类型列表上方）
                     val remarkTextState = remember {
                         TextFieldState(
                             defaultText = uiState.remarkText,
@@ -579,8 +583,6 @@ private fun EditRecordScaffoldContent(
                             },
                         )
                     }
-
-                    // 备注信息
                     CbTextField(
                         textFieldState = remarkTextState,
                         label = { Text(text = stringResource(id = R.string.remark)) },
@@ -589,6 +591,23 @@ private fun EditRecordScaffoldContent(
                             .fillMaxWidth()
                             .padding(top = 8.dp),
                     )
+
+                    Text(
+                        text = stringResource(id = R.string.record_type),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+                    )
+
+                    // 类型列表：位于备注栏下方并自身垂直滚动（排倒数的类型从备注栏下方滚入）；
+                    // 设最小高度避免小屏（键盘+标题栏挤压）时被压成 0 高，剩余内容由外层滚动可达
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = TypeAreaMinHeight),
+                    ) {
+                        typeListContent()
+                    }
 
                     // 其他选项
                     FlowRow(
@@ -662,11 +681,11 @@ private fun EditRecordScaffoldContent(
                             )
                         }
 
-                        // 手续费
+                        // 手续费（点击切换常驻键盘编辑目标为「手续费」）
                         val hasCharges = uiState.chargesText.isNotBlank()
                         ElevatedFilterChip(
                             selected = hasCharges,
-                            onClick = onChargesClick,
+                            onClick = { onKeypadTargetChange(KeypadTarget.CHARGES) },
                             label = { Text(text = stringResource(id = R.string.charges) + if (hasCharges) ":${uiState.chargesText.withCNY()}" else "") },
                         )
 
@@ -676,7 +695,7 @@ private fun EditRecordScaffoldContent(
                                 uiState.concessionsText.isNotBlank()
                             ElevatedFilterChip(
                                 selected = hasConcessions,
-                                onClick = onConcessionsClick,
+                                onClick = { onKeypadTargetChange(KeypadTarget.CONCESSIONS) },
                                 label = { Text(text = stringResource(id = R.string.concessions) + if (hasConcessions) ":${uiState.concessionsText.withCNY()}" else "") },
                             )
                         }
@@ -713,10 +732,6 @@ private fun EditRecordScaffoldContent(
  *
  * @param bottomSheetType 抽屉类型
  * @param uiState 界面 UI 状态
- * @param primaryColor 主色调
- * @param onAmountChange 金额变化回调
- * @param onChargesChange 手续费变化回调
- * @param onConcessionsChange 优惠变化回调
  * @param selectAssetBottomSheetContent 选择资产抽屉
  * @param selectRelatedAssetBottomSheetContent 选择关联资产抽屉
  * @param selectTagBottomSheetContent 选择标签抽屉
@@ -726,10 +741,6 @@ private fun EditRecordBottomSheetContent(
     bottomSheetType: EditRecordBottomSheetEnum,
     uiState: EditRecordUiState,
     imageList: List<ImageViewModel>,
-    primaryColor: Color,
-    onAmountChange: (String) -> Unit,
-    onChargesChange: (String) -> Unit,
-    onConcessionsChange: (String) -> Unit,
     onImageItemClick: (List<ImageViewModel>, Int) -> Unit,
     onImageListSave: (List<ImageViewModel>) -> Unit,
     selectAssetBottomSheetContent: @Composable () -> Unit,
@@ -737,36 +748,6 @@ private fun EditRecordBottomSheetContent(
     selectTagBottomSheetContent: @Composable () -> Unit,
 ) {
     when (bottomSheetType) {
-        EditRecordBottomSheetEnum.AMOUNT -> {
-            (uiState as? EditRecordUiState.Success)?.let { data ->
-                Calculator(
-                    defaultText = data.amountText,
-                    primaryColor = primaryColor,
-                    onConfirmClick = onAmountChange,
-                )
-            }
-        }
-
-        EditRecordBottomSheetEnum.CHARGES -> {
-            (uiState as? EditRecordUiState.Success)?.let { data ->
-                Calculator(
-                    defaultText = data.chargesText,
-                    primaryColor = primaryColor,
-                    onConfirmClick = onChargesChange,
-                )
-            }
-        }
-
-        EditRecordBottomSheetEnum.CONCESSIONS -> {
-            (uiState as? EditRecordUiState.Success)?.let { data ->
-                Calculator(
-                    defaultText = data.concessionsText,
-                    primaryColor = primaryColor,
-                    onConfirmClick = onConcessionsChange,
-                )
-            }
-        }
-
         EditRecordBottomSheetEnum.ASSETS -> {
             // 显示选择资产弹窗
             selectAssetBottomSheetContent()
@@ -1028,6 +1009,7 @@ internal fun EditRecordTopBar(
     uiState: EditRecordUiState,
     selectedTab: RecordTypeCategoryEnum,
     onTabSelected: (RecordTypeCategoryEnum) -> Unit,
+    onSaveClick: () -> Unit,
     onBackClick: () -> Unit,
 ) {
     if (uiState is EditRecordUiState.Success) {
@@ -1035,6 +1017,17 @@ internal fun EditRecordTopBar(
             selectedTabIndex = selectedTab.ordinal,
             indicatorColor = selectedTab.typeColor,
             onBackClick = onBackClick,
+            actions = {
+                // 保存：键盘常驻底部后改由标题栏右侧承担（原右下 FAB 会与键盘重叠）
+                CbIconButton(
+                    onClick = rememberHapticOnClick(onClick = onSaveClick),
+                ) {
+                    Icon(
+                        imageVector = CbIcons.SaveAs,
+                        contentDescription = stringResource(id = R.string.cd_confirm),
+                    )
+                }
+            },
         ) {
             RecordTypeCategoryEnum.entries.forEach { enum ->
                 CbTab(

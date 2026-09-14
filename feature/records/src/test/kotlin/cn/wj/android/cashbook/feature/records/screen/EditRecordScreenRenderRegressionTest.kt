@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import cn.wj.android.cashbook.core.design.theme.CashbookTheme
 import cn.wj.android.cashbook.core.model.enums.ImageQualityEnum
 import cn.wj.android.cashbook.core.model.enums.RecordTypeCategoryEnum
@@ -90,11 +91,8 @@ class EditRecordScreenRenderRegressionTest {
                     onTypeCategorySelect = {},
                     bottomSheetType = EditRecordBottomSheetEnum.NONE,
                     onRequestDismissBottomSheet = {},
-                    onAmountClick = {},
                     onAmountChange = {},
-                    onChargesClick = {},
                     onChargesChange = {},
-                    onConcessionsClick = {},
                     onRelatedRecordClick = {},
                     onConcessionsChange = {},
                     onImageItemClick = { _, _ -> },
@@ -116,7 +114,8 @@ class EditRecordScreenRenderRegressionTest {
                 )
             }
         }
-        // body 未塌陷时，类型列表区应真实可见
-        composeTestRule.onNodeWithText("类型列表").assertIsDisplayed()
+        // 布局改为「键盘常驻底部 + 上方区域可滚动 + 类型区最小高度」，类型区不得塌陷：
+        // 滚动到位后仍须真实可见（塌陷为 0 高时该断言失败）
+        composeTestRule.onNodeWithText("类型列表").performScrollTo().assertIsDisplayed()
     }
 }

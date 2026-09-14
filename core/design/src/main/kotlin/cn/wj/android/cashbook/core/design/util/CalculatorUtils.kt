@@ -27,7 +27,7 @@ import java.util.regex.Pattern
  *
  * > [王杰](mailto:15555650921@163.com) 创建于 2021/5/31
  */
-internal object CalculatorUtils {
+object CalculatorUtils {
 
     private const val SYMBOL_PLUS = "+"
     private const val SYMBOL_MINUS = "-"

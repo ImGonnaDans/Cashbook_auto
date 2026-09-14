@@ -17,24 +17,20 @@
 package cn.wj.android.cashbook.feature.records.enums
 
 /**
- * 底部菜单类型
+ * 常驻数字键盘的编辑目标
  *
- * > [王杰](mailto:15555650921@163.com) 创建于 2023/2/27
+ * 添加账单页数字键盘固定于底部，切换目标决定「确认」写回哪个字段。
+ *
+ * > [王杰](mailto:15555650921@163.com) 创建于 2026/9/14
  */
-enum class EditRecordBottomSheetEnum {
+enum class KeypadTarget {
 
-    /** 不显示 */
-    NONE,
+    /** 金额 */
+    AMOUNT,
 
-    /** 资产列表 */
-    ASSETS,
+    /** 手续费 */
+    CHARGES,
 
-    /** 关联资产列表 */
-    RELATED_ASSETS,
-
-    /** 标签 */
-    TAGS,
-
-    /** 图片 */
-    IMAGES,
+    /** 优惠 */
+    CONCESSIONS,
 }

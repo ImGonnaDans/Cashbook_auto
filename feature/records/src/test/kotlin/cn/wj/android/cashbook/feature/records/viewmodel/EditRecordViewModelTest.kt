@@ -172,24 +172,6 @@ class EditRecordViewModelTest {
     // region 底部 Sheet 状态管理
 
     @Test
-    fun when_displayAmountSheet_then_bottomSheetType_is_amount() {
-        viewModel.displayAmountSheet()
-        assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.AMOUNT)
-    }
-
-    @Test
-    fun when_displayChargesSheet_then_bottomSheetType_is_charges() {
-        viewModel.displayChargesSheet()
-        assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.CHARGES)
-    }
-
-    @Test
-    fun when_displayConcessions_then_bottomSheetType_is_concessions() {
-        viewModel.displayConcessions()
-        assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.CONCESSIONS)
-    }
-
-    @Test
     fun when_displayAssetSheet_then_bottomSheetType_is_assets() {
         viewModel.displayAssetSheet()
         assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.ASSETS)
@@ -215,8 +197,8 @@ class EditRecordViewModelTest {
 
     @Test
     fun when_dismissBottomSheet_then_bottomSheetType_is_none() {
-        viewModel.displayAmountSheet()
-        assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.AMOUNT)
+        viewModel.displayAssetSheet()
+        assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.ASSETS)
 
         viewModel.dismissBottomSheet()
         assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.NONE)
@@ -240,24 +222,6 @@ class EditRecordViewModelTest {
 
         val success = viewModel.uiState.value as EditRecordUiState.Success
         assertThat(success.amountText).isEqualTo("19.99")
-    }
-
-    @Test
-    fun when_updateAmount_then_bottomSheet_dismissed() = runTest {
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.uiState.collect {}
-        }
-
-        viewModel.initRecordId(-1L)
-        advanceUntilIdle()
-
-        viewModel.displayAmountSheet()
-        assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.AMOUNT)
-
-        viewModel.updateAmount("10")
-        advanceUntilIdle()
-
-        assertThat(viewModel.bottomSheetType).isEqualTo(EditRecordBottomSheetEnum.NONE)
     }
 
     @Test

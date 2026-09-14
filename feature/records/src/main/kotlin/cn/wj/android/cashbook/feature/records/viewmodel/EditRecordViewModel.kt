@@ -52,7 +52,6 @@ import cn.wj.android.cashbook.feature.records.model.ImageViewModel
 import cn.wj.android.cashbook.feature.records.model.asModel
 import cn.wj.android.cashbook.feature.records.model.asViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -281,7 +280,6 @@ class EditRecordViewModel @Inject constructor(
             initialValue = "",
         )
 
-    private var amountSheetShowed = false
     private var recordIdInit = false
 
     /** 更新记录 [id]，刷新界面数据 */
@@ -291,14 +289,6 @@ class EditRecordViewModel @Inject constructor(
         }
         recordIdInit = true
         _recordIdData.tryEmit(id)
-        if (id == -1L && !amountSheetShowed) {
-            // 新建，自动显示输入框
-            amountSheetShowed = true
-            viewModelScope.launch {
-                delay(500L)
-                displayAmountSheet()
-            }
-        }
     }
 
     private var assetIdInit = false
@@ -355,42 +345,24 @@ class EditRecordViewModel @Inject constructor(
         _mutableTypeCategoryData.tryEmit(typeCategory)
     }
 
-    /** 显示金额抽屉 */
-    fun displayAmountSheet() {
-        bottomSheetType = EditRecordBottomSheetEnum.AMOUNT
-    }
-
-    /** 更新金额 */
+    /** 更新金额（常驻键盘「确认」触发） */
     fun updateAmount(amount: String) {
         viewModelScope.launch {
             _mutableRecordData.tryEmit(_displayRecordData.first().copy(amount = amount.toAmountCent()))
-            dismissBottomSheet()
         }
     }
 
-    /** 显示手续费抽屉 */
-    fun displayChargesSheet() {
-        bottomSheetType = EditRecordBottomSheetEnum.CHARGES
-    }
-
-    /** 更新手续费 */
+    /** 更新手续费（常驻键盘「确认」触发） */
     fun updateCharge(charges: String) {
         viewModelScope.launch {
             _mutableRecordData.tryEmit(_displayRecordData.first().copy(charges = charges.toAmountCent()))
-            dismissBottomSheet()
         }
     }
 
-    /** 显示优惠抽屉 */
-    fun displayConcessions() {
-        bottomSheetType = EditRecordBottomSheetEnum.CONCESSIONS
-    }
-
-    /** 更新优惠 */
+    /** 更新优惠（常驻键盘「确认」触发） */
     fun updateConcessions(concessions: String) {
         viewModelScope.launch {
             _mutableRecordData.tryEmit(_displayRecordData.first().copy(concessions = concessions.toAmountCent()))
-            dismissBottomSheet()
         }
     }
 
