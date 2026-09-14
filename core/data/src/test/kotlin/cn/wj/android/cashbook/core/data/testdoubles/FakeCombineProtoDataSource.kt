@@ -237,6 +237,14 @@ class FakeCombineProtoDataSource {
         _appSettings.update { it.copy(lastReminderCheckMs = ms) }
     }
 
+    suspend fun updateAutoRecordEnable(enable: Boolean) {
+        _appSettings.update { it.copy(autoRecordEnable = enable) }
+    }
+
+    suspend fun updateAutoRecordMatchTexts(matchTexts: List<String>) {
+        _appSettings.update { it.copy(autoRecordMatchTexts = matchTexts) }
+    }
+
     suspend fun updateLatestVersionData(
         latestVersionName: String,
         latestVersionInfo: String,

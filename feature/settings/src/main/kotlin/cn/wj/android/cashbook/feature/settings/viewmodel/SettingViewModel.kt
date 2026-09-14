@@ -81,6 +81,8 @@ class SettingViewModel @Inject constructor(
             monthStartDay = normalizeMonthStartDay(record.monthStartDay),
             creditCardReminderEnable = app.creditCardReminderEnable,
             reimbursementReminderEnable = app.reimbursementReminderEnable,
+            autoRecordEnable = app.autoRecordEnable,
+            autoRecordMatchTexts = app.autoRecordMatchTexts,
         )
     }
         .stateIn(
@@ -341,6 +343,23 @@ class SettingViewModel @Inject constructor(
         }
     }
 
+    fun onAutoRecordEnableChanged(enable: Boolean) {
+        viewModelScope.launch {
+            settingRepository.updateAutoRecordEnable(enable)
+        }
+    }
+
+    fun onAutoRecordMatchTextClick() {
+        dialogState = DialogState.Shown(SettingDialogEnum.AUTO_RECORD_MATCH_TEXT)
+    }
+
+    fun onAutoRecordMatchTextsConfirm(matchTexts: List<String>) {
+        viewModelScope.launch {
+            settingRepository.updateAutoRecordMatchTexts(matchTexts)
+        }
+        dismissDialog()
+    }
+
     fun onVerificationModeSelected(verificationMode: VerificationModeEnum) {
         viewModelScope.launch {
             settingRepository.updateVerificationMode(verificationMode)
@@ -385,6 +404,8 @@ sealed class SettingUiState(
     open val monthStartDay: Int = 1,
     open val creditCardReminderEnable: Boolean = false,
     open val reimbursementReminderEnable: Boolean = false,
+    open val autoRecordEnable: Boolean = false,
+    open val autoRecordMatchTexts: List<String> = emptyList(),
 ) {
     data object Loading : SettingUiState()
 
@@ -400,5 +421,7 @@ sealed class SettingUiState(
         override val monthStartDay: Int,
         override val creditCardReminderEnable: Boolean,
         override val reimbursementReminderEnable: Boolean,
+        override val autoRecordEnable: Boolean,
+        override val autoRecordMatchTexts: List<String>,
     ) : SettingUiState()
 }

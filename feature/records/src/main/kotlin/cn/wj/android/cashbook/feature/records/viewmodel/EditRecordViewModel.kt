@@ -80,8 +80,8 @@ class EditRecordViewModel @Inject constructor(
     private val typeRepository: TypeRepository,
     assetRepository: AssetRepository,
     tagRepository: TagRepository,
-    recordRepository: RecordRepository,
-    settingRepository: SettingRepository,
+    private val recordRepository: RecordRepository,
+    private val settingRepository: SettingRepository,
     getDefaultRecordUseCase: GetDefaultRecordUseCase,
     private val saveRecordUseCase: SaveRecordUseCase,
 ) : ViewModel() {
@@ -314,6 +314,39 @@ class EditRecordViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _mutableRecordData.tryEmit(_displayRecordData.first().copy(assetId = assetId))
+        }
+    }
+
+    private var prefillInit = false
+
+    /**
+     * 半自动记账预填：金额（来自通知匹配）+ 备注（来源应用名）+ 默认分类（上次记账分类）。
+     *
+     * 幂等：仅首次调用生效，防止 uiState 重发时重复预填覆盖用户修改。
+     */
+    fun initPrefill(source: String, amountCents: Long?) {
+        if (prefillInit) {
+            return
+        }
+        prefillInit = true
+        if (source.isBlank() && amountCents == null) {
+            return
+        }
+        viewModelScope.launch {
+            val current = _displayRecordData.first()
+            val bookId = settingRepository.recordSettingsModel.first().currentBookId
+            val latestTypeId = recordRepository.queryLatestRecordTypeId(bookId)
+            var updated = current
+            if (amountCents != null) {
+                updated = updated.copy(amount = amountCents)
+            }
+            if (source.isNotBlank()) {
+                updated = updated.copy(remark = source)
+            }
+            if (latestTypeId != null && latestTypeId > 0L) {
+                updated = updated.copy(typeId = latestTypeId)
+            }
+            _mutableRecordData.tryEmit(updated)
         }
     }
 

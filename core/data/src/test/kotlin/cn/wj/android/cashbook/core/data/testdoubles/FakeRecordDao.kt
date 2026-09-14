@@ -546,6 +546,14 @@ class FakeRecordDao : RecordDao {
             .minOfOrNull { it.recordTime }
     }
 
+    override suspend fun queryLatestRecordTypeId(booksId: Long): Long? {
+        // 忠实复刻 DAO 的 SELECT type_id ... ORDER BY id DESC LIMIT 1：
+        // 按账本过滤 + id 最大（最近创建）的记录的 typeId；id 为 null（未持久化）的行不参与
+        return records.filter { it.booksId == booksId && it.id != null }
+            .maxByOrNull { it.id!! }
+            ?.typeId
+    }
+
     /** 辅助方法：添加记录并自动分配 id */
     fun addRecord(record: RecordTable): RecordTable {
         val withId = if (record.id == null) record.copy(id = nextId++) else record

@@ -625,4 +625,20 @@ interface RecordDao {
         """,
     )
     suspend fun queryLastUsedAssetId(booksId: Long): Long?
+
+    /**
+     * 查询当前账本 [booksId] 最近一条记录的类型 id。
+     *
+     * 用于半自动记账预填默认分类（按账本隔离，取最近创建记录的类型）。
+     * - ORDER BY id DESC = 最近创建（id 为自增主键）
+     * - 无匹配返回 null
+     */
+    @Query(
+        """
+        SELECT type_id FROM db_record
+        WHERE books_id = :booksId
+        ORDER BY id DESC LIMIT 1
+        """,
+    )
+    suspend fun queryLatestRecordTypeId(booksId: Long): Long?
 }

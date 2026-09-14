@@ -271,4 +271,12 @@ class FakeSettingRepository : SettingRepository {
     override suspend fun updateLastReminderCheckMs(ms: Long) {
         _appSettingsModel.value = _appSettingsModel.value.copy(lastReminderCheckMs = ms)
     }
+
+    override suspend fun updateAutoRecordEnable(enable: Boolean) {
+        _appSettingsModel.value = _appSettingsModel.value.copy(autoRecordEnable = enable)
+    }
+
+    override suspend fun updateAutoRecordMatchTexts(matchTexts: List<String>) {
+        _appSettingsModel.value = _appSettingsModel.value.copy(autoRecordMatchTexts = matchTexts)
+    }
 }

@@ -654,6 +654,11 @@ class RecordRepositoryImpl @Inject constructor(
             recordDao.queryEarliestRecordTime(booksId)
         }
 
+    override suspend fun queryLatestRecordTypeId(booksId: Long): Long? =
+        withContext(coroutineContext) {
+            recordDao.queryLatestRecordTypeId(booksId)
+        }
+
     override suspend fun backfillImagesToFiles() = withContext(coroutineContext) {
         // 仅 clean pass（无坏行）才置位，否则下次启动重试剩余未迁移行（封装在仓库，ViewModel 只读标志即可）；
         // 参照 finalAmountNetRecalcDone 的 F2 统一副作用模式

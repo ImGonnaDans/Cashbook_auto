@@ -16,6 +16,7 @@
 
 package cn.wj.android.cashbook.ui
 
+import cn.wj.android.cashbook.core.common.AUTO_RECORD_AMOUNT_CENTS_NONE
 import cn.wj.android.cashbook.core.common.REMINDER_TARGET_ASSET
 import cn.wj.android.cashbook.core.common.REMINDER_TARGET_NONE
 import cn.wj.android.cashbook.core.common.REMINDER_TARGET_REIMBURSEMENT
@@ -33,38 +34,122 @@ class PendingDeepLinkTest {
             shortcutsType = -1,
             reminderTarget = REMINDER_TARGET_ASSET,
             reminderAssetId = 9L,
+            autoRecordSource = null,
+            autoRecordAmountCents = AUTO_RECORD_AMOUNT_CENTS_NONE,
         )
         assertThat(result).isEqualTo(PendingDeepLink.AssetInfo(9L))
     }
 
     @Test
     fun reminderReimbursement_parsesToReimbursement() {
-        val result = parsePendingDeepLink(-1, REMINDER_TARGET_REIMBURSEMENT, -1L)
+        val result = parsePendingDeepLink(
+            shortcutsType = -1,
+            reminderTarget = REMINDER_TARGET_REIMBURSEMENT,
+            reminderAssetId = -1L,
+            autoRecordSource = null,
+            autoRecordAmountCents = AUTO_RECORD_AMOUNT_CENTS_NONE,
+        )
         assertThat(result).isEqualTo(PendingDeepLink.Reimbursement)
     }
 
     @Test
     fun shortcutAdd_parsesToAddRecord() {
-        val result = parsePendingDeepLink(SHORTCUTS_TYPE_ADD, REMINDER_TARGET_NONE, -1L)
+        val result = parsePendingDeepLink(
+            shortcutsType = SHORTCUTS_TYPE_ADD,
+            reminderTarget = REMINDER_TARGET_NONE,
+            reminderAssetId = -1L,
+            autoRecordSource = null,
+            autoRecordAmountCents = AUTO_RECORD_AMOUNT_CENTS_NONE,
+        )
         assertThat(result).isEqualTo(PendingDeepLink.AddRecord)
     }
 
     @Test
     fun shortcutAsset_parsesToMyAsset() {
-        val result = parsePendingDeepLink(SHORTCUTS_TYPE_ASSET, REMINDER_TARGET_NONE, -1L)
+        val result = parsePendingDeepLink(
+            shortcutsType = SHORTCUTS_TYPE_ASSET,
+            reminderTarget = REMINDER_TARGET_NONE,
+            reminderAssetId = -1L,
+            autoRecordSource = null,
+            autoRecordAmountCents = AUTO_RECORD_AMOUNT_CENTS_NONE,
+        )
         assertThat(result).isEqualTo(PendingDeepLink.MyAsset)
     }
 
     @Test
     fun nothing_parsesToNone() {
-        val result = parsePendingDeepLink(-1, REMINDER_TARGET_NONE, -1L)
+        val result = parsePendingDeepLink(
+            shortcutsType = -1,
+            reminderTarget = REMINDER_TARGET_NONE,
+            reminderAssetId = -1L,
+            autoRecordSource = null,
+            autoRecordAmountCents = AUTO_RECORD_AMOUNT_CENTS_NONE,
+        )
         assertThat(result).isEqualTo(PendingDeepLink.None)
     }
 
     @Test
     fun reminderTakesPriorityOverShortcut() {
         // 同时带 reminder 与 shortcut → reminder 优先（构造上互斥，防御性）
-        val result = parsePendingDeepLink(SHORTCUTS_TYPE_ADD, REMINDER_TARGET_ASSET, 3L)
+        val result = parsePendingDeepLink(
+            shortcutsType = SHORTCUTS_TYPE_ADD,
+            reminderTarget = REMINDER_TARGET_ASSET,
+            reminderAssetId = 3L,
+            autoRecordSource = null,
+            autoRecordAmountCents = AUTO_RECORD_AMOUNT_CENTS_NONE,
+        )
         assertThat(result).isEqualTo(PendingDeepLink.AssetInfo(3L))
+    }
+
+    // ========== EditRecordPrefill（半自动记账）==========
+
+    @Test
+    fun autoRecordSource_parsesToEditRecordPrefill() {
+        val result = parsePendingDeepLink(
+            shortcutsType = -1,
+            reminderTarget = REMINDER_TARGET_NONE,
+            reminderAssetId = -1L,
+            autoRecordSource = "微信",
+            autoRecordAmountCents = 1999L,
+        )
+        assertThat(result).isEqualTo(PendingDeepLink.EditRecordPrefill("微信", 1999L))
+    }
+
+    @Test
+    fun autoRecordSourceWithNoAmount_parsesToEditRecordPrefillWithNullAmount() {
+        val result = parsePendingDeepLink(
+            shortcutsType = -1,
+            reminderTarget = REMINDER_TARGET_NONE,
+            reminderAssetId = -1L,
+            autoRecordSource = "微信",
+            autoRecordAmountCents = AUTO_RECORD_AMOUNT_CENTS_NONE,
+        )
+        assertThat(result).isEqualTo(PendingDeepLink.EditRecordPrefill("微信", null))
+    }
+
+    @Test
+    fun autoRecordTakesPriorityOverReminder() {
+        // autoRecord 与 reminder 同时出现 → autoRecord 优先（构造上互斥，防御性）
+        val result = parsePendingDeepLink(
+            shortcutsType = -1,
+            reminderTarget = REMINDER_TARGET_ASSET,
+            reminderAssetId = 3L,
+            autoRecordSource = "微信",
+            autoRecordAmountCents = 1999L,
+        )
+        assertThat(result).isEqualTo(PendingDeepLink.EditRecordPrefill("微信", 1999L))
+    }
+
+    @Test
+    fun blankAutoRecordSource_fallsThroughToReminderOrShortcut() {
+        // 空 source 不触发 autoRecord，继续检查 reminder/shortcut
+        val result = parsePendingDeepLink(
+            shortcutsType = SHORTCUTS_TYPE_ADD,
+            reminderTarget = REMINDER_TARGET_NONE,
+            reminderAssetId = -1L,
+            autoRecordSource = "",
+            autoRecordAmountCents = AUTO_RECORD_AMOUNT_CENTS_NONE,
+        )
+        assertThat(result).isEqualTo(PendingDeepLink.AddRecord)
     }
 }

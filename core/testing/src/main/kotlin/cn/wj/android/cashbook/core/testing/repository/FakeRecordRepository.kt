@@ -556,4 +556,12 @@ class FakeRecordRepository : RecordRepository {
             .minByOrNull { it.recordTime }
             ?.recordTime
     }
+
+    override suspend fun queryLatestRecordTypeId(booksId: Long): Long? {
+        // 忠实复刻 DAO 的 SELECT type_id ... ORDER BY id DESC LIMIT 1：
+        // 按账本过滤 + id 最大（最近创建）的记录的 typeId；无记录返回 null
+        return records.filter { it.booksId == booksId }
+            .maxByOrNull { it.id }
+            ?.typeId
+    }
 }

@@ -206,3 +206,30 @@ internal fun Context.reminderNotificationBuilder(): NotificationCompat.Builder {
         .setPriority(NotificationCompat.PRIORITY_DEFAULT)
         .setAutoCancel(true)
 }
+
+internal const val AutoRecordNotificationChannelID = "AutoRecordNotificationChannel"
+internal const val AutoRecordNotificationId = 20017
+
+/**
+ * 半自动记账通知（监听通知匹配后弹出，点击进入编辑记录预填）。
+ */
+internal fun Context.autoRecordNotificationBuilder(): NotificationCompat.Builder {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val channel = NotificationChannel(
+            AutoRecordNotificationChannelID,
+            getString(R.string.auto_record_notification_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = getString(R.string.auto_record_notification_channel_description)
+        }
+        val notificationManager: NotificationManager? =
+            getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.createNotificationChannel(channel)
+    }
+    return NotificationCompat.Builder(this, AutoRecordNotificationChannelID)
+        .setSmallIcon(R.drawable.ic_notification)
+        .setWhen(System.currentTimeMillis())
+        .setCategory(NotificationCompat.CATEGORY_REMINDER)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .setAutoCancel(true)
+}

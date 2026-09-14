@@ -191,4 +191,17 @@
     <string name="export_exporting">正在导出…</string>
     <string name="export_success">成功导出 %1$d 条记录</string>
     <string name="export_failed">导出失败：%1$s</string>
+
+    <!-- 半自动记账 -->
+    <string name="auto_record">半自动记账</string>
+    <string name="auto_record_hint">监听支付通知，自动弹出记账提醒</string>
+    <string name="auto_record_match_text">匹配文本</string>
+    <string name="auto_record_match_text_hint">点击设置，* 代表金额</string>
+    <string name="auto_record_match_text_dialog_title">设置匹配文本</string>
+    <string name="auto_record_match_text_dialog_hint">输入支付通知中的文本，用 * 标记金额位置\n例如：微信支付 * 元</string>
+    <string name="auto_record_listener_access">通知使用权</string>
+    <string name="auto_record_listener_access_enabled">已开启</string>
+    <string name="auto_record_listener_access_disabled">未开启，点击前往开启</string>
+    <string name="auto_record_match_text_add">添加一项</string>
+    <string name="auto_record_need_listener_access">未开启通知使用权，将无法监听支付通知</string>
 </resources>

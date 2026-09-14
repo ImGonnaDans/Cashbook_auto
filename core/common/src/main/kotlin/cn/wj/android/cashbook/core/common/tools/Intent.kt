@@ -23,6 +23,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import cn.wj.android.cashbook.core.common.ext.ifCondition
 
 /**
@@ -76,6 +77,20 @@ fun jumpAppDetails(context: Context) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
             data = Uri.fromParts("package", context.packageName, null)
+        },
+    )
+}
+
+/** 判断当前应用是否已获得「通知使用权」（半自动记账监听通知的前置授权） */
+fun isNotificationListenerEnabled(context: Context): Boolean =
+    NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+
+/** 通过 [context] 跳转系统「通知使用权」列表页，供用户手动为本应用授权 */
+fun jumpNotificationListenerSettings(context: Context) {
+    context.startActivity(
+        Intent().apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            action = Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
         },
     )
 }

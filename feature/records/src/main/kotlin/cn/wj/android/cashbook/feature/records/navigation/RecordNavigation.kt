@@ -40,6 +40,8 @@ import kotlinx.serialization.Serializable
 data class EditRecord(
     val recordId: Long = -1L,
     val assetId: Long = -1L,
+    val prefillSource: String = "",
+    val prefillAmountCents: Long = -1L,
 )
 
 /** 路由 - 数据分析 */
@@ -75,8 +77,20 @@ fun NavController.naviToAnalytics() {
     this.navigate(Analytics)
 }
 
-fun NavController.naviToEditRecord(recordId: Long = -1L, assetId: Long = -1L) {
-    this.navigate(EditRecord(recordId = recordId, assetId = assetId))
+fun NavController.naviToEditRecord(
+    recordId: Long = -1L,
+    assetId: Long = -1L,
+    prefillSource: String = "",
+    prefillAmountCents: Long? = null,
+) {
+    this.navigate(
+        EditRecord(
+            recordId = recordId,
+            assetId = assetId,
+            prefillSource = prefillSource,
+            prefillAmountCents = prefillAmountCents ?: -1L,
+        ),
+    )
 }
 
 fun NavController.naviToTypedAnalytics(
@@ -131,6 +145,8 @@ fun NavGraphBuilder.editRecordScreen(
         EditRecordRoute(
             recordId = route.recordId,
             assetId = route.assetId,
+            prefillSource = route.prefillSource,
+            prefillAmountCents = route.prefillAmountCents.takeIf { it != -1L },
             typeListContent = typeListContent,
             assetBottomSheetContent = assetBottomSheetContent,
             tagBottomSheetContent = tagBottomSheetContent,

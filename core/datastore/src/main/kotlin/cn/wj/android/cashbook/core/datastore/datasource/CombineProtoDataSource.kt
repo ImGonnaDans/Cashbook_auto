@@ -96,6 +96,8 @@ class CombineProtoDataSource @Inject constructor(
             creditCardReminderEnable = it.creditCardReminderEnable,
             reimbursementReminderEnable = it.reimbursementReminderEnable,
             lastReminderCheckMs = it.lastReminderCheckMs,
+            autoRecordEnable = it.autoRecordEnable,
+            autoRecordMatchTexts = it.autoRecordMatchTextsList.toList(),
         )
     }
 
@@ -415,6 +417,19 @@ class CombineProtoDataSource @Inject constructor(
 
     suspend fun updateLastReminderCheckMs(ms: Long) {
         appSettings.updateData { it.copy { this.lastReminderCheckMs = ms } }
+    }
+
+    suspend fun updateAutoRecordEnable(enable: Boolean) {
+        appSettings.updateData { it.copy { this.autoRecordEnable = enable } }
+    }
+
+    suspend fun updateAutoRecordMatchTexts(matchTexts: List<String>) {
+        appSettings.updateData {
+            it.copy {
+                autoRecordMatchTexts.clear()
+                autoRecordMatchTexts.addAll(matchTexts)
+            }
+        }
     }
 
     companion object {

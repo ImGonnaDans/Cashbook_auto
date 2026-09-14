@@ -85,6 +85,15 @@ const val EXTRA_REMINDER_TARGET = "extra_reminder_target"
 /** 提醒深链资产 id extra key */
 const val EXTRA_REMINDER_ASSET_ID = "extra_reminder_asset_id"
 
+/** 自动记账深链 - 来源应用名 extra key */
+const val EXTRA_AUTO_RECORD_SOURCE = "extra_auto_record_source"
+
+/** 自动记账深链 - 金额（分）extra key */
+const val EXTRA_AUTO_RECORD_AMOUNT_CENTS = "extra_auto_record_amount_cents"
+
+/** 自动记账深链 - 金额未携带哨兵值 */
+const val AUTO_RECORD_AMOUNT_CENTS_NONE = -1L
+
 /** 提醒深链目标 - 无 */
 const val REMINDER_TARGET_NONE = 0
 

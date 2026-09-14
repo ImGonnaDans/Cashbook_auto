@@ -38,6 +38,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
@@ -48,20 +49,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.wj.android.cashbook.core.common.ApplicationInfo
 import cn.wj.android.cashbook.core.common.PASSWORD_REGEX
 import cn.wj.android.cashbook.core.common.tools.isMatch
+import cn.wj.android.cashbook.core.common.tools.isNotificationListenerEnabled
+import cn.wj.android.cashbook.core.common.tools.jumpNotificationListenerSettings
 import cn.wj.android.cashbook.core.design.component.CbAlertDialog
 import cn.wj.android.cashbook.core.design.component.CbHorizontalDivider
+import cn.wj.android.cashbook.core.design.component.CbIconButton
 import cn.wj.android.cashbook.core.design.component.CbListItem
 import cn.wj.android.cashbook.core.design.component.CbPasswordTextField
 import cn.wj.android.cashbook.core.design.component.CbScaffold
@@ -126,6 +134,15 @@ internal fun SettingRoute(
         }
     }
 
+    // 半自动记账依赖「通知使用权」（NotificationListenerService），需用户在系统设置中手动授权；
+    // 进入页面及从系统设置返回时均重新查询，保证展示状态实时
+    var notificationListenerEnabled by remember {
+        mutableStateOf(isNotificationListenerEnabled(context))
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        notificationListenerEnabled = isNotificationListenerEnabled(context)
+    }
+
     SettingScreen(
         supportFingerprint = supportFingerprint,
         uiState = uiState,
@@ -146,6 +163,14 @@ internal fun SettingRoute(
             if (enable) requestNotificationPermission()
             viewModel.onReimbursementReminderEnableChanged(enable)
         },
+        onAutoRecordEnableChanged = { enable ->
+            if (enable) requestNotificationPermission()
+            viewModel.onAutoRecordEnableChanged(enable)
+        },
+        onAutoRecordMatchTextClick = viewModel::onAutoRecordMatchTextClick,
+        onAutoRecordMatchTextsConfirm = viewModel::onAutoRecordMatchTextsConfirm,
+        notificationListenerEnabled = notificationListenerEnabled,
+        onNotificationListenerAccessClick = { jumpNotificationListenerSettings(context) },
         onNeedSecurityVerificationWhenLaunchChanged = viewModel::onNeedSecurityVerificationWhenLaunchChanged,
         onEnableFingerprintVerificationChanged = viewModel::onEnableFingerprintVerificationChanged,
         onPasswordClick = viewModel::onPasswordClick,
@@ -198,6 +223,8 @@ internal fun SettingRoute(
  * @param onBackupAndRecoveryClick 备份与恢复点击回调
  * @param onBackClick 返回点击回调
  * @param onShowSnackbar 显示 [androidx.compose.material3.Snackbar]，参数：(显示文本，action文本) -> [SnackbarResult]
+ * @param notificationListenerEnabled 是否已获得「通知使用权」
+ * @param onNotificationListenerAccessClick 通知使用权点击回调
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -215,6 +242,11 @@ internal fun SettingScreen(
     onMonthStartDaySelected: (Int) -> Unit,
     onCreditCardReminderEnableChanged: (Boolean) -> Unit,
     onReimbursementReminderEnableChanged: (Boolean) -> Unit,
+    onAutoRecordEnableChanged: (Boolean) -> Unit,
+    onAutoRecordMatchTextClick: () -> Unit,
+    onAutoRecordMatchTextsConfirm: (List<String>) -> Unit,
+    notificationListenerEnabled: Boolean,
+    onNotificationListenerAccessClick: () -> Unit,
     onNeedSecurityVerificationWhenLaunchChanged: (Boolean) -> Unit,
     onVerificationModeClick: () -> Unit,
     onEnableFingerprintVerificationChanged: (Boolean) -> Unit,
@@ -274,6 +306,11 @@ internal fun SettingScreen(
             onMonthStartDaySelected = onMonthStartDaySelected,
             onCreditCardReminderEnableChanged = onCreditCardReminderEnableChanged,
             onReimbursementReminderEnableChanged = onReimbursementReminderEnableChanged,
+            onAutoRecordEnableChanged = onAutoRecordEnableChanged,
+            onAutoRecordMatchTextClick = onAutoRecordMatchTextClick,
+            onAutoRecordMatchTextsConfirm = onAutoRecordMatchTextsConfirm,
+            notificationListenerEnabled = notificationListenerEnabled,
+            onNotificationListenerAccessClick = onNotificationListenerAccessClick,
             onNeedSecurityVerificationWhenLaunchChanged = onNeedSecurityVerificationWhenLaunchChanged,
             onEnableFingerprintVerificationChanged = onEnableFingerprintVerificationChanged,
             onPasswordClick = onPasswordClick,
@@ -315,6 +352,8 @@ internal fun SettingScreen(
  * @param onDynamicColorClick 动态配色点击回调
  * @param onDynamicColorSelected 动态配置模式切换回调
  * @param onBackupAndRecoveryClick 备份与恢复点击回调
+ * @param notificationListenerEnabled 是否已获得「通知使用权」
+ * @param onNotificationListenerAccessClick 通知使用权点击回调
  */
 @Composable
 internal fun SettingContent(
@@ -329,6 +368,11 @@ internal fun SettingContent(
     onMonthStartDaySelected: (Int) -> Unit,
     onCreditCardReminderEnableChanged: (Boolean) -> Unit,
     onReimbursementReminderEnableChanged: (Boolean) -> Unit,
+    onAutoRecordEnableChanged: (Boolean) -> Unit,
+    onAutoRecordMatchTextClick: () -> Unit,
+    onAutoRecordMatchTextsConfirm: (List<String>) -> Unit,
+    notificationListenerEnabled: Boolean,
+    onNotificationListenerAccessClick: () -> Unit,
     onNeedSecurityVerificationWhenLaunchChanged: (Boolean) -> Unit,
     onVerificationModeClick: () -> Unit,
     onEnableFingerprintVerificationChanged: (Boolean) -> Unit,
@@ -370,6 +414,8 @@ internal fun SettingContent(
             onDarkModeSelected = onDarkModeSelected,
             onDynamicColorSelected = onDynamicColorSelected,
             onVerificationModeSelected = onVerificationModeSelected,
+            autoRecordMatchTexts = uiState.autoRecordMatchTexts,
+            onAutoRecordMatchTextsConfirm = onAutoRecordMatchTextsConfirm,
         )
 
         LazyColumn {
@@ -437,6 +483,64 @@ internal fun SettingContent(
                                 contentDescription = null,
                             )
                         }
+                    },
+                )
+                CbHorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+            }
+
+            item {
+                CbListItem(
+                    modifier = Modifier.padding(top = 16.dp),
+                    headlineContent = { Text(text = stringResource(id = R.string.auto_record)) },
+                    supportingContent = {
+                        if (uiState.autoRecordEnable && !notificationListenerEnabled) {
+                            Text(
+                                text = stringResource(id = R.string.auto_record_need_listener_access),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        } else {
+                            Text(text = stringResource(id = R.string.auto_record_hint))
+                        }
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.autoRecordEnable,
+                            onCheckedChange = onAutoRecordEnableChanged,
+                        )
+                    },
+                )
+                CbListItem(
+                    modifier = Modifier.clickable { onAutoRecordMatchTextClick() },
+                    headlineContent = { Text(text = stringResource(id = R.string.auto_record_match_text)) },
+                    supportingContent = {
+                        if (uiState.autoRecordMatchTexts.isEmpty()) {
+                            Text(text = stringResource(id = R.string.auto_record_match_text_hint))
+                        } else {
+                            Text(
+                                text = uiState.autoRecordMatchTexts.joinToString(separator = "、"),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    },
+                )
+                CbListItem(
+                    modifier = Modifier.clickable { onNotificationListenerAccessClick() },
+                    headlineContent = { Text(text = stringResource(id = R.string.auto_record_listener_access)) },
+                    supportingContent = {
+                        Text(
+                            text = if (notificationListenerEnabled) {
+                                stringResource(id = R.string.auto_record_listener_access_enabled)
+                            } else {
+                                stringResource(id = R.string.auto_record_listener_access_disabled)
+                            },
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = CbIcons.KeyboardArrowRight,
+                            contentDescription = null,
+                        )
                     },
                 )
                 CbHorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
@@ -638,6 +742,8 @@ internal fun DialogContent(
     onDarkModeSelected: (DarkModeEnum) -> Unit,
     onDynamicColorSelected: (Boolean) -> Unit,
     onVerificationModeSelected: (VerificationModeEnum) -> Unit,
+    autoRecordMatchTexts: List<String>,
+    onAutoRecordMatchTextsConfirm: (List<String>) -> Unit,
 ) {
     (dialogState as? DialogState.Shown<*>)?.let {
         when (it.data) {
@@ -687,6 +793,15 @@ internal fun DialogContent(
                 MonthStartDayDialog(
                     monthStartDay = monthStartDay,
                     onMonthStartDaySelected = onMonthStartDaySelected,
+                    onDismissClick = onRequestDismissDialog,
+                )
+            }
+
+            SettingDialogEnum.AUTO_RECORD_MATCH_TEXT -> {
+                // 半自动记账匹配文本
+                AutoRecordMatchTextsDialog(
+                    matchTexts = autoRecordMatchTexts,
+                    onConfirmClick = onAutoRecordMatchTextsConfirm,
                     onDismissClick = onRequestDismissDialog,
                 )
             }
@@ -1420,6 +1535,11 @@ private fun SettingScreenPreview() {
             onMonthStartDaySelected = { _ -> },
             onCreditCardReminderEnableChanged = { },
             onReimbursementReminderEnableChanged = { },
+            onAutoRecordEnableChanged = { },
+            onAutoRecordMatchTextClick = { },
+            onAutoRecordMatchTextsConfirm = { },
+            notificationListenerEnabled = false,
+            onNotificationListenerAccessClick = { },
             onVerifyConfirmClick = { _, _ -> },
             onClearConfirmClick = { _, _ -> },
             onFingerprintVerifySuccess = { },
@@ -1432,4 +1552,66 @@ private fun SettingScreenPreview() {
             onShowSnackbar = { _, _ -> SnackbarResult.Dismissed },
         )
     }
+}
+
+@Composable
+private fun AutoRecordMatchTextsDialog(
+    matchTexts: List<String>,
+    onConfirmClick: (List<String>) -> Unit,
+    onDismissClick: () -> Unit,
+) {
+    // 至少保留一行输入框便于首次配置；空行在确认时过滤
+    val patterns = remember(matchTexts) {
+        matchTexts.toMutableStateList().apply {
+            if (isEmpty()) {
+                add("")
+            }
+        }
+    }
+    CbAlertDialog(
+        onDismissRequest = onDismissClick,
+        title = { Text(text = stringResource(id = R.string.auto_record_match_text_dialog_title)) },
+        text = {
+            Column {
+                Text(text = stringResource(id = R.string.auto_record_match_text_dialog_hint))
+                Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 280.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    patterns.forEachIndexed { index, pattern ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = pattern,
+                                onValueChange = { patterns[index] = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                            )
+                            CbIconButton(onClick = { patterns.removeAt(index) }) {
+                                Icon(
+                                    imageVector = CbIcons.Close,
+                                    contentDescription = stringResource(id = R.string.delete),
+                                )
+                            }
+                        }
+                    }
+                }
+                CbTextButton(onClick = { patterns.add("") }) {
+                    Icon(imageVector = CbIcons.Add, contentDescription = null)
+                    Text(text = stringResource(id = R.string.auto_record_match_text_add))
+                }
+            }
+        },
+        confirmButton = {
+            CbTextButton(onClick = { onConfirmClick(patterns.filter { it.isNotBlank() }) }) {
+                Text(text = stringResource(id = R.string.confirm))
+            }
+        },
+        dismissButton = {
+            CbTextButton(onClick = onDismissClick) {
+                Text(text = stringResource(id = R.string.cancel))
+            }
+        },
+    )
 }

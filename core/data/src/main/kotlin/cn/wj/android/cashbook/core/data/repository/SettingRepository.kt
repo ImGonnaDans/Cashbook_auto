@@ -124,6 +124,12 @@ interface SettingRepository {
     /** 更新上次提醒检查日期(epoch ms) */
     suspend fun updateLastReminderCheckMs(ms: Long)
 
+    /** 更新半自动记账开关 */
+    suspend fun updateAutoRecordEnable(enable: Boolean)
+
+    /** 更新半自动记账匹配文本列表（* 代表金额通配，任一命中即触发） */
+    suspend fun updateAutoRecordMatchTexts(matchTexts: List<String>)
+
     /** 导出设备无关偏好白名单为 JSON（排除凭据 / WebDAV / 设备绑定项），用于备份 */
     suspend fun exportSettings(): String
 

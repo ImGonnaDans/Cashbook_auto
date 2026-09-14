@@ -138,6 +138,8 @@ import java.util.Calendar
 internal fun EditRecordRoute(
     recordId: Long,
     assetId: Long,
+    prefillSource: String = "",
+    prefillAmountCents: Long? = null,
     typeListContent: @Composable (RecordTypeCategoryEnum, Long, (Long) -> Unit) -> Unit,
     assetBottomSheetContent: @Composable (Long, Long, Boolean, (Long) -> Unit) -> Unit,
     tagBottomSheetContent: @Composable (List<Long>, (List<Long>) -> Unit, () -> Unit) -> Unit,
@@ -147,6 +149,7 @@ internal fun EditRecordRoute(
     viewModel: EditRecordViewModel = hiltViewModel<EditRecordViewModel>().apply {
         initRecordId(recordId)
         initAssetId(assetId)
+        initPrefill(prefillSource, prefillAmountCents)
     },
 ) {
     val savingHintText = stringResource(id = R.string.record_saving)

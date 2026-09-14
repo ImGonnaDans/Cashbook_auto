@@ -269,6 +269,16 @@ class SettingRepositoryImpl @Inject constructor(
             combineProtoDataSource.updateLastReminderCheckMs(ms)
         }
 
+    override suspend fun updateAutoRecordEnable(enable: Boolean) =
+        withContext(coroutineContext) {
+            combineProtoDataSource.updateAutoRecordEnable(enable)
+        }
+
+    override suspend fun updateAutoRecordMatchTexts(matchTexts: List<String>) =
+        withContext(coroutineContext) {
+            combineProtoDataSource.updateAutoRecordMatchTexts(matchTexts)
+        }
+
     override suspend fun exportSettings(): String = withContext(coroutineContext) {
         val app = appSettingsModel.first()
         val record = recordSettingsModel.first()

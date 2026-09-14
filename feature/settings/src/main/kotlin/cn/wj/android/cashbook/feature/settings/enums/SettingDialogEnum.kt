@@ -49,4 +49,7 @@ enum class SettingDialogEnum {
 
     /** 月起始日 */
     MONTH_START_DAY,
+
+    /** 半自动记账匹配文本 */
+    AUTO_RECORD_MATCH_TEXT,
 }

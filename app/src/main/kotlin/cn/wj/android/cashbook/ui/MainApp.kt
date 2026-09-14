@@ -252,6 +252,14 @@ fun MainApp(
                                     if (navController.currentDestination?.hasRoute<Reimbursement>() != true) {
                                         navController.naviToReimbursement()
                                     }
+
+                                is PendingDeepLink.EditRecordPrefill ->
+                                    if (navController.currentDestination?.hasRoute<EditRecord>() != true) {
+                                        navController.naviToEditRecord(
+                                            prefillSource = link.source,
+                                            prefillAmountCents = link.amountCents,
+                                        )
+                                    }
                             }
                             if (pendingDeepLink != PendingDeepLink.None) {
                                 onConsumePendingDeepLink()

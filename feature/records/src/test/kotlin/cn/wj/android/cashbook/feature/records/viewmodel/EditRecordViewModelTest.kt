@@ -962,6 +962,100 @@ class EditRecordViewModelTest {
 
     // endregion
 
+    // region initPrefill（半自动记账预填）
+
+    @Test
+    fun when_initPrefill_with_amount_then_amount_prefilled() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        viewModel.initPrefill(source = "", amountCents = 1999L)
+        advanceUntilIdle()
+
+        val success = viewModel.uiState.value as EditRecordUiState.Success
+        assertThat(success.amountText).isEqualTo("19.99")
+    }
+
+    @Test
+    fun when_initPrefill_with_source_then_remark_prefilled() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        viewModel.initPrefill(source = "微信", amountCents = null)
+        advanceUntilIdle()
+
+        val success = viewModel.uiState.value as EditRecordUiState.Success
+        assertThat(success.remarkText).isEqualTo("微信")
+    }
+
+    @Test
+    fun when_initPrefill_with_latest_typeId_then_type_prefilled() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        // 添加一条 booksId=1, typeId=2（工资）的记录作为"上次记账分类"
+        recordRepository.addRecord(createRecordModel(id = 100L, booksId = 1L, typeId = 2L))
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        viewModel.initPrefill(source = "微信", amountCents = 1999L)
+        advanceUntilIdle()
+
+        val success = viewModel.uiState.value as EditRecordUiState.Success
+        assertThat(success.selectedTypeId).isEqualTo(2L)
+    }
+
+    @Test
+    fun when_initPrefill_called_twice_then_second_ignored() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        viewModel.initPrefill(source = "微信", amountCents = 1999L)
+        advanceUntilIdle()
+
+        // 第二次调用应被忽略
+        viewModel.initPrefill(source = "支付宝", amountCents = 5000L)
+        advanceUntilIdle()
+
+        val success = viewModel.uiState.value as EditRecordUiState.Success
+        assertThat(success.amountText).isEqualTo("19.99")
+        assertThat(success.remarkText).isEqualTo("微信")
+    }
+
+    @Test
+    fun when_initPrefill_with_null_source_and_null_amount_then_noop() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        val beforeAmount = (viewModel.uiState.value as EditRecordUiState.Success).amountText
+
+        viewModel.initPrefill(source = "", amountCents = null)
+        advanceUntilIdle()
+
+        val success = viewModel.uiState.value as EditRecordUiState.Success
+        assertThat(success.amountText).isEqualTo(beforeAmount)
+    }
+
+    // endregion
+
     // region needRelated
 
     @Test

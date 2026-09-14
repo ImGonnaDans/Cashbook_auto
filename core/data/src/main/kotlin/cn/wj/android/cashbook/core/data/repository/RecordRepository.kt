@@ -238,6 +238,14 @@ interface RecordRepository {
     suspend fun countExportRecords(booksId: Long, startDate: Long, endDate: Long): Int
 
     suspend fun queryEarliestRecordTime(booksId: Long): Long?
+
+    /**
+     * 查询当前账本 [booksId] 最近一条记录的类型 id。
+     *
+     * 用于半自动记账预填默认分类（按账本隔离，取最近创建记录的类型）。
+     * 无匹配返回 null。
+     */
+    suspend fun queryLatestRecordTypeId(booksId: Long): Long?
 }
 
 internal fun RecordTable.asModel(): RecordModel {

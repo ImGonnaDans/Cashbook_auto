@@ -83,4 +83,8 @@ data class AppSettingsModel(
     val reimbursementReminderEnable: Boolean = false,
     /** 上次提醒检查日期(epoch ms)，0=从未 */
     val lastReminderCheckMs: Long = 0L,
+    /** 是否开启半自动记账（监听通知匹配文本，弹出记账通知） */
+    val autoRecordEnable: Boolean = false,
+    /** 半自动记账匹配文本列表，* 代表金额通配；任一命中即触发 */
+    val autoRecordMatchTexts: List<String> = emptyList(),
 )

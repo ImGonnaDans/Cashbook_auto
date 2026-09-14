@@ -31,6 +31,9 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import cn.wj.android.cashbook.core.common.AUTO_RECORD_AMOUNT_CENTS_NONE
+import cn.wj.android.cashbook.core.common.EXTRA_AUTO_RECORD_AMOUNT_CENTS
+import cn.wj.android.cashbook.core.common.EXTRA_AUTO_RECORD_SOURCE
 import cn.wj.android.cashbook.core.common.EXTRA_REMINDER_ASSET_ID
 import cn.wj.android.cashbook.core.common.EXTRA_REMINDER_TARGET
 import cn.wj.android.cashbook.core.common.REMINDER_TARGET_NONE
@@ -59,6 +62,11 @@ class MainActivity : AppCompatActivity() {
             shortcutsType = intent.getIntExtra(SHORTCUTS_TYPE, -1),
             reminderTarget = intent.getIntExtra(EXTRA_REMINDER_TARGET, REMINDER_TARGET_NONE),
             reminderAssetId = intent.getLongExtra(EXTRA_REMINDER_ASSET_ID, -1L),
+            autoRecordSource = intent.getStringExtra(EXTRA_AUTO_RECORD_SOURCE),
+            autoRecordAmountCents = intent.getLongExtra(
+                EXTRA_AUTO_RECORD_AMOUNT_CENTS,
+                AUTO_RECORD_AMOUNT_CENTS_NONE,
+            ),
         )
         logger().i("onCreate(), pendingDeepLink = <$pendingDeepLink>")
 
@@ -116,6 +124,8 @@ class MainActivity : AppCompatActivity() {
                             intent.removeExtra(SHORTCUTS_TYPE)
                             intent.removeExtra(EXTRA_REMINDER_TARGET)
                             intent.removeExtra(EXTRA_REMINDER_ASSET_ID)
+                            intent.removeExtra(EXTRA_AUTO_RECORD_SOURCE)
+                            intent.removeExtra(EXTRA_AUTO_RECORD_AMOUNT_CENTS)
                         },
                     )
                 }
@@ -130,6 +140,11 @@ class MainActivity : AppCompatActivity() {
             shortcutsType = intent.getIntExtra(SHORTCUTS_TYPE, -1),
             reminderTarget = intent.getIntExtra(EXTRA_REMINDER_TARGET, REMINDER_TARGET_NONE),
             reminderAssetId = intent.getLongExtra(EXTRA_REMINDER_ASSET_ID, -1L),
+            autoRecordSource = intent.getStringExtra(EXTRA_AUTO_RECORD_SOURCE),
+            autoRecordAmountCents = intent.getLongExtra(
+                EXTRA_AUTO_RECORD_AMOUNT_CENTS,
+                AUTO_RECORD_AMOUNT_CENTS_NONE,
+            ),
         )
         logger().i("onNewIntent(), pendingDeepLink = <$pendingDeepLink>")
     }

@@ -38,4 +38,11 @@
     <string name="reminder_credit_repayment">%1$s 今日还款，别忘了</string>
     <string name="reminder_reimbursement">你有 %1$d 笔支出待报销</string>
     <string name="reminder_public_title">您有一条记账提醒</string>
+
+    <!-- 半自动记账 -->
+    <string name="auto_record_notification_channel_name">半自动记账</string>
+    <string name="auto_record_notification_channel_description">监听支付通知，匹配后弹出记账提醒</string>
+    <string name="auto_record_notification_title">来自 %1$s 的记账提醒</string>
+    <string name="auto_record_notification_text">金额：%1$s，点击记一笔</string>
+    <string name="auto_record_notification_text_no_amount">点击记一笔</string>
 </resources>
