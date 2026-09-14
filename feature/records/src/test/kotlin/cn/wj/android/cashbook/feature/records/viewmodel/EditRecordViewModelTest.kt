@@ -34,6 +34,7 @@ import cn.wj.android.cashbook.domain.usecase.GetDefaultRecordUseCase
 import cn.wj.android.cashbook.domain.usecase.SaveRecordUseCase
 import cn.wj.android.cashbook.feature.records.enums.EditRecordBookmarkEnum
 import cn.wj.android.cashbook.feature.records.enums.EditRecordBottomSheetEnum
+import cn.wj.android.cashbook.feature.records.enums.KeypadTarget
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -631,6 +632,201 @@ class EditRecordViewModelTest {
         // 验证记录已保存到 repository
         assertThat(recordRepository.lastUpdatedRecord).isNotNull()
         assertThat(recordRepository.lastUpdatedRecord!!.amount).isEqualTo(5000L)
+    }
+
+    @Test
+    fun when_trySave_with_keypad_amount_target_then_saved_with_keypad_value() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.selectedTypeCategoryData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.displayTagIdListData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.displayImageData.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        var successCalled = false
+        viewModel.trySave(
+            controller = fakeProgressDialogController,
+            hintText = "保存中",
+            keypadTarget = KeypadTarget.AMOUNT,
+            keypadValue = "19.99",
+        ) { successCalled = true }
+        advanceUntilIdle()
+
+        // 键盘值先写回再保存，不会保存旧金额
+        assertThat(successCalled).isTrue()
+        assertThat(recordRepository.lastUpdatedRecord!!.amount).isEqualTo(1999L)
+    }
+
+    @Test
+    fun when_trySave_with_keypad_charges_target_then_charges_applied() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.selectedTypeCategoryData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.displayTagIdListData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.displayImageData.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+        // 金额必须有值，否则保存校验不通过
+        viewModel.updateAmount("50")
+        advanceUntilIdle()
+
+        viewModel.trySave(
+            controller = fakeProgressDialogController,
+            hintText = "保存中",
+            keypadTarget = KeypadTarget.CHARGES,
+            keypadValue = "3",
+        ) {}
+        advanceUntilIdle()
+
+        assertThat(recordRepository.lastUpdatedRecord!!.amount).isEqualTo(5000L)
+        assertThat(recordRepository.lastUpdatedRecord!!.charges).isEqualTo(300L)
+    }
+
+    @Test
+    fun when_trySave_with_keypad_zero_value_then_bookmark_amount_must_not_be_zero() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.selectedTypeCategoryData.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        var successCalled = false
+        viewModel.trySave(
+            controller = fakeProgressDialogController,
+            hintText = "保存中",
+            keypadTarget = KeypadTarget.AMOUNT,
+            keypadValue = "0",
+        ) { successCalled = true }
+        advanceUntilIdle()
+
+        assertThat(successCalled).isFalse()
+        assertThat(viewModel.shouldDisplayBookmark)
+            .isEqualTo(EditRecordBookmarkEnum.AMOUNT_MUST_NOT_BE_ZERO)
+    }
+
+    @Test
+    fun when_prepareNextRecord_then_amount_zero_and_other_fields_kept() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.selectedTypeCategoryData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.displayTagIdListData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.displayImageData.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+        viewModel.updateRemark("午餐")
+        advanceUntilIdle()
+
+        // 保存成功后触发「再记」
+        viewModel.trySave(
+            controller = fakeProgressDialogController,
+            hintText = "保存中",
+            keypadTarget = KeypadTarget.AMOUNT,
+            keypadValue = "19.99",
+        ) {
+            viewModel.prepareNextRecord()
+        }
+        advanceUntilIdle()
+
+        val next = viewModel.uiState.value as EditRecordUiState.Success
+        // 金额清零，其余表单字段保留
+        assertThat(next.amountText).isEqualTo("0")
+        assertThat(next.remarkText).isEqualTo("午餐")
+        assertThat(next.selectedTypeId).isEqualTo(1L)
+
+        // 再记后保存的是新的一笔（id 仍为 -1，即新建）
+        viewModel.trySave(
+            controller = fakeProgressDialogController,
+            hintText = "保存中",
+            keypadTarget = KeypadTarget.AMOUNT,
+            keypadValue = "8.88",
+        ) {}
+        advanceUntilIdle()
+
+        assertThat(recordRepository.lastUpdatedRecord!!.id).isEqualTo(-1L)
+        assertThat(recordRepository.lastUpdatedRecord!!.amount).isEqualTo(888L)
+    }
+
+    @Test
+    fun when_trySave_success_then_lock_until_prepareNextRecord() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.selectedTypeCategoryData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.displayTagIdListData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.displayImageData.collect {}
+        }
+
+        viewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        var successCount = 0
+        // 第一笔保存成功
+        viewModel.trySave(
+            controller = fakeProgressDialogController,
+            hintText = "保存中",
+            keypadTarget = KeypadTarget.AMOUNT,
+            keypadValue = "19.99",
+        ) { successCount++ }
+        advanceUntilIdle()
+        assertThat(successCount).isEqualTo(1)
+
+        // 退出页面的保存路径成功后保持加锁：重复调用被忽略，避免退出过程中重复入库
+        viewModel.trySave(
+            controller = fakeProgressDialogController,
+            hintText = "保存中",
+            keypadTarget = KeypadTarget.AMOUNT,
+            keypadValue = "19.99",
+        ) { successCount++ }
+        advanceUntilIdle()
+        assertThat(successCount).isEqualTo(1)
+
+        // 「再记」释放保存锁，可以继续记录下一笔
+        viewModel.prepareNextRecord()
+        advanceUntilIdle()
+        viewModel.trySave(
+            controller = fakeProgressDialogController,
+            hintText = "保存中",
+            keypadTarget = KeypadTarget.AMOUNT,
+            keypadValue = "8.88",
+        ) { successCount++ }
+        advanceUntilIdle()
+
+        assertThat(successCount).isEqualTo(2)
+        assertThat(recordRepository.lastUpdatedRecord!!.amount).isEqualTo(888L)
     }
 
     @Test

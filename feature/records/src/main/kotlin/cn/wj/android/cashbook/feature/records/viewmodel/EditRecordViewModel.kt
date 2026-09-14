@@ -47,6 +47,7 @@ import cn.wj.android.cashbook.domain.usecase.GetDefaultRecordUseCase
 import cn.wj.android.cashbook.domain.usecase.SaveRecordUseCase
 import cn.wj.android.cashbook.feature.records.enums.EditRecordBookmarkEnum
 import cn.wj.android.cashbook.feature.records.enums.EditRecordBottomSheetEnum
+import cn.wj.android.cashbook.feature.records.enums.KeypadTarget
 import cn.wj.android.cashbook.feature.records.model.DateTimePickerModel
 import cn.wj.android.cashbook.feature.records.model.ImageViewModel
 import cn.wj.android.cashbook.feature.records.model.asModel
@@ -345,21 +346,21 @@ class EditRecordViewModel @Inject constructor(
         _mutableTypeCategoryData.tryEmit(typeCategory)
     }
 
-    /** 更新金额（常驻键盘「确认」触发） */
+    /** 更新金额（切换键盘编辑目标 / 提交键盘输入时触发） */
     fun updateAmount(amount: String) {
         viewModelScope.launch {
             _mutableRecordData.tryEmit(_displayRecordData.first().copy(amount = amount.toAmountCent()))
         }
     }
 
-    /** 更新手续费（常驻键盘「确认」触发） */
+    /** 更新手续费（切换键盘编辑目标 / 提交键盘输入时触发） */
     fun updateCharge(charges: String) {
         viewModelScope.launch {
             _mutableRecordData.tryEmit(_displayRecordData.first().copy(charges = charges.toAmountCent()))
         }
     }
 
-    /** 更新优惠（常驻键盘「确认」触发） */
+    /** 更新优惠（切换键盘编辑目标 / 提交键盘输入时触发） */
     fun updateConcessions(concessions: String) {
         viewModelScope.launch {
             _mutableRecordData.tryEmit(_displayRecordData.first().copy(concessions = concessions.toAmountCent()))
@@ -453,53 +454,112 @@ class EditRecordViewModel @Inject constructor(
 
     private var inSave = false
 
-    /** 保存记录 */
-    fun trySave(controller: ProgressDialogController, hintText: String, onSuccess: () -> Unit) {
+    /**
+     * 保存记录
+     *
+     * [keypadTarget] 与 [keypadValue] 均非空时，先按键盘当前编辑目标把「键盘在编辑中的值」
+     * 写回对应字段再保存——常驻键盘的输入是页面本地状态（不进 ViewModel）；
+     * 写回与保存放在同一协程内串行，避免保存读到写回前的旧值。
+     *
+     * 保存成功的后续行为由 [onSuccess] 决定：保存 = 退出页面；再记 = 留在页面继续记账。
+     *
+     * @param controller 进度弹窗控制器
+     * @param hintText 进度提示文案
+     * @param keypadTarget 键盘当前编辑目标，为 null 表示无需写回（直接保存当前表单）
+     * @param keypadValue 键盘当前表达式 / 金额文本
+     * @param onSuccess 保存成功回调
+     */
+    fun trySave(
+        controller: ProgressDialogController,
+        hintText: String,
+        keypadTarget: KeypadTarget? = null,
+        keypadValue: String? = null,
+        onSuccess: () -> Unit,
+    ) {
         if (inSave) {
             return
         }
         inSave = true
         viewModelScope.launch {
-            val recordEntity = _displayRecordData.first()
-            if (recordEntity.amount == 0L) {
-                // 记录金额不能为 0
-                shouldDisplayBookmark = EditRecordBookmarkEnum.AMOUNT_MUST_NOT_BE_ZERO
-                inSave = false
-                return@launch
-            }
-            // 支出分类
-            val typeCategory = selectedTypeCategoryData.first()
-            if (typeRepository.getNoNullRecordTypeById(recordEntity.typeId).typeCategory != typeCategory) {
-                // 类型与支出类型不匹配
-                shouldDisplayBookmark = EditRecordBookmarkEnum.TYPE_NOT_MATCH_CATEGORY
-                inSave = false
-                return@launch
-            }
-            val result = runCatchWithProgress(controller, hint = hintText, cancelable = false) {
-                saveRecordUseCase(
-                    recordModel = recordEntity.copy(
-                        relatedAssetId = if (typeCategory != RecordTypeCategoryEnum.TRANSFER) -1L else recordEntity.relatedAssetId,
-                        concessions = if (typeCategory == RecordTypeCategoryEnum.INCOME) 0L else recordEntity.concessions,
-                        reimbursable = if (typeCategory != RecordTypeCategoryEnum.EXPENDITURE) false else recordEntity.reimbursable,
-                        reimbursed = if (typeCategory != RecordTypeCategoryEnum.EXPENDITURE) false else recordEntity.reimbursed,
-                    ),
-                    tagIdList = displayTagIdListData.first(),
-                    relatedRecordIdList = _relatedRecordIdData.first(),
-                    relatedImageList = displayImageData.first().map { it.asModel() },
+            val target = keypadTarget
+            if (target != null) {
+                val cents = keypadValue.orEmpty().toAmountCent()
+                val current = _displayRecordData.first()
+                _mutableRecordData.tryEmit(
+                    when (target) {
+                        KeypadTarget.AMOUNT -> current.copy(amount = cents)
+                        KeypadTarget.CHARGES -> current.copy(charges = cents)
+                        KeypadTarget.CONCESSIONS -> current.copy(concessions = cents)
+                    },
                 )
-                Result.success(null)
-            }.getOrElse { throwable ->
-                // 保存失败
-                this@EditRecordViewModel.logger().e(throwable, "onSaveClick()")
-                shouldDisplayBookmark = EditRecordBookmarkEnum.SAVE_FAILED
-                Result.failure<Any>(throwable)
             }
-            if (result.isSuccess) {
+            // 保存失败复位锁允许重试；成功时锁保持，由「留在页面」的动作（prepareNextRecord）主动释放，
+            // 避免退出动画期间连点导致重复入库
+            if (doSave(controller, hintText)) {
                 onSuccess.invoke()
             } else {
                 inSave = false
             }
         }
+    }
+
+    /**
+     * 连续记账（再记）：保存成功后不退出页面，除金额清零外其余表单数据保持不变，
+     * 并切回「新建下一笔」——记录 id 归 -1、清空随上一笔已入库的关联图片与关联记录
+     * （它们属于上一笔，保留会重复关联）；类型 / 资产 / 标签 / 日期 / 备注 / 手续费 / 优惠保留。
+     *
+     * 同时释放 [inSave] 保存锁，允许继续记录下一笔；退出页面的保存路径保持加锁语义。
+     */
+    fun prepareNextRecord() {
+        viewModelScope.launch {
+            _recordIdData.tryEmit(-1L)
+            val current = _displayRecordData.first()
+            _mutableImageData.tryEmit(null)
+            _mutableRelatedRecordIdData.tryEmit(null)
+            _mutableRecordData.tryEmit(current.copy(id = -1L, amount = 0L))
+            inSave = false
+        }
+    }
+
+    /**
+     * 校验并保存当前记录数据（不含字段写回），返回是否保存成功
+     */
+    private suspend fun doSave(controller: ProgressDialogController, hintText: String): Boolean {
+        val recordEntity = _displayRecordData.first()
+        if (recordEntity.amount == 0L) {
+            // 记录金额不能为 0
+            shouldDisplayBookmark = EditRecordBookmarkEnum.AMOUNT_MUST_NOT_BE_ZERO
+            return false
+        }
+        // 支出分类
+        val typeCategory = selectedTypeCategoryData.first()
+        if (typeRepository.getNoNullRecordTypeById(recordEntity.typeId).typeCategory != typeCategory) {
+            // 类型与支出类型不匹配
+            shouldDisplayBookmark = EditRecordBookmarkEnum.TYPE_NOT_MATCH_CATEGORY
+            return false
+        }
+        return runCatchWithProgress(controller, hint = hintText, cancelable = false) {
+            saveRecordUseCase(
+                recordModel = recordEntity.copy(
+                    relatedAssetId = if (typeCategory != RecordTypeCategoryEnum.TRANSFER) -1L else recordEntity.relatedAssetId,
+                    concessions = if (typeCategory == RecordTypeCategoryEnum.INCOME) 0L else recordEntity.concessions,
+                    reimbursable = if (typeCategory != RecordTypeCategoryEnum.EXPENDITURE) false else recordEntity.reimbursable,
+                    reimbursed = if (typeCategory != RecordTypeCategoryEnum.EXPENDITURE) false else recordEntity.reimbursed,
+                ),
+                tagIdList = displayTagIdListData.first(),
+                relatedRecordIdList = _relatedRecordIdData.first(),
+                relatedImageList = displayImageData.first().map { it.asModel() },
+            )
+            Result.success(null)
+        }.fold(
+            onSuccess = { true },
+            onFailure = { throwable ->
+                // 保存失败
+                this@EditRecordViewModel.logger().e(throwable, "onSaveClick()")
+                shouldDisplayBookmark = EditRecordBookmarkEnum.SAVE_FAILED
+                false
+            },
+        )
     }
 
     /** 显示选择日期弹窗 */

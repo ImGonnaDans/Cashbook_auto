@@ -125,4 +125,5 @@
     <string name="year_balance">年结余</string>
     <string name="launcher_no_data_hint_general">当前没有记录数据</string>
     <string name="launcher_no_data_button_general">点击选择其它日期</string>
+    <string name="record_save_again">再记</string>
 </resources>

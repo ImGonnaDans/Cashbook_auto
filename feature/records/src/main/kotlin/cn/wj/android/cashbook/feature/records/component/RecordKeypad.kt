@@ -50,13 +50,15 @@ private const val ConfirmKeyRows = 2
  * 添加账单页常驻数字键盘
  *
  * 固定于页面底部（不再以底部抽屉形态弹出）；按键行为复用 [CalculatorUtils]，
- * 顶部显示当前编辑目标与表达式，表达式需要求值时「确认」键显示为「＝」。
+ * 顶部显示当前编辑目标与表达式，表达式需要求值时「保存」键显示为「＝」；
+ * 「再记」键保存后不退出页面，继续记下一笔。
  *
  * @param targetLabel 当前编辑目标名称（金额 / 手续费 / 优惠）
  * @param expression 当前表达式或金额文本
  * @param primaryColor 主色调
  * @param onExpressionChange 表达式变化回调
- * @param onConfirmClick 确认回调（表达式无需再求值时触发）
+ * @param onSaveClick 保存回调（表达式无需再求值时触发）
+ * @param onSaveAgainClick 再记回调：保存后不退出页面继续记账（表达式无需再求值时触发）
  *
  * > [王杰](mailto:15555650921@163.com) 创建于 2026/9/14
  */
@@ -66,7 +68,8 @@ internal fun RecordKeypad(
     expression: String,
     primaryColor: Color,
     onExpressionChange: (String) -> Unit,
-    onConfirmClick: () -> Unit,
+    onSaveClick: () -> Unit,
+    onSaveAgainClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -101,7 +104,7 @@ internal fun RecordKeypad(
         }
 
         Row(modifier = Modifier.fillMaxWidth()) {
-            // 第 1 列：C 1 4 7 ()
+            // 第 1 列：C 1 4 7 再记
             Column(modifier = Modifier.weight(1f)) {
                 KeypadButton(text = "C", onClick = { onExpressionChange("0") })
                 KeypadButton(
@@ -116,9 +119,16 @@ internal fun RecordKeypad(
                     text = "7",
                     onClick = { onExpressionChange(CalculatorUtils.onNumberClick(expression, "7")) },
                 )
+                // 再记：保存后不退出页面继续记账（表达式待求值时先求值，与「=」键一致）
                 KeypadButton(
-                    text = "()",
-                    onClick = { onExpressionChange(CalculatorUtils.onBracketClick(expression)) },
+                    text = stringResource(id = R.string.record_save_again),
+                    onClick = {
+                        if (CalculatorUtils.needShowEqualSign(expression)) {
+                            onExpressionChange(CalculatorUtils.onEqualsClick(expression))
+                        } else {
+                            onSaveAgainClick()
+                        }
+                    },
                 )
             }
             // 第 2 列：÷ 2 5 8 0
@@ -167,7 +177,7 @@ internal fun RecordKeypad(
                     onClick = { onExpressionChange(CalculatorUtils.onPointClick(expression)) },
                 )
             }
-            // 第 4 列：⌫ - + 确认(=)
+            // 第 4 列：⌫ - + 保存(=)
             Column(modifier = Modifier.weight(1f)) {
                 CbIconButton(
                     modifier = Modifier
@@ -200,7 +210,7 @@ internal fun RecordKeypad(
                         if (CalculatorUtils.needShowEqualSign(expression)) {
                             onExpressionChange(CalculatorUtils.onEqualsClick(expression))
                         } else {
-                            onConfirmClick()
+                            onSaveClick()
                         }
                     },
                 ) {
@@ -208,7 +218,7 @@ internal fun RecordKeypad(
                         text = if (CalculatorUtils.needShowEqualSign(expression)) {
                             "="
                         } else {
-                            stringResource(id = R.string.confirm)
+                            stringResource(id = R.string.save)
                         },
                         color = MaterialTheme.colorScheme.onPrimary,
                     )

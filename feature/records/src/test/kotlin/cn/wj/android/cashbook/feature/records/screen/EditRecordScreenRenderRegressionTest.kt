@@ -109,7 +109,8 @@ class EditRecordScreenRenderRegressionTest {
                     onImageClick = {},
                     selectTagBottomSheetContent = {},
                     onReimbursableClick = {},
-                    onSaveClick = {},
+                    onSaveClick = { _, _ -> },
+                    onSaveAgainClick = { _, _ -> },
                     onBackClick = {},
                 )
             }

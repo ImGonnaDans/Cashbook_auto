@@ -104,6 +104,7 @@ import cn.wj.android.cashbook.core.design.component.TextFieldState
 import cn.wj.android.cashbook.core.design.component.rememberSnackbarHostState
 import cn.wj.android.cashbook.core.design.icon.CbIcons
 import cn.wj.android.cashbook.core.design.theme.rememberHapticOnClick
+import cn.wj.android.cashbook.core.design.util.CalculatorUtils
 import cn.wj.android.cashbook.core.model.enums.ImageQualityEnum
 import cn.wj.android.cashbook.core.model.enums.RecordTypeCategoryEnum
 import cn.wj.android.cashbook.core.ui.DialogState
@@ -235,11 +236,22 @@ internal fun EditRecordRoute(
         },
         onReimbursableClick = viewModel::switchReimbursable,
         onRelatedRecordClick = onRequestNaviToSelectRelatedRecord,
-        onSaveClick = {
+        onSaveClick = { target, value ->
             viewModel.trySave(
                 controller = progressDialogController,
                 hintText = savingHintText,
+                keypadTarget = target,
+                keypadValue = value,
                 onSuccess = onRequestPopBackStack,
+            )
+        },
+        onSaveAgainClick = { target, value ->
+            viewModel.trySave(
+                controller = progressDialogController,
+                hintText = savingHintText,
+                keypadTarget = target,
+                keypadValue = value,
+                onSuccess = viewModel::prepareNextRecord,
             )
         },
         modifier = modifier,
@@ -274,7 +286,8 @@ internal fun EditRecordRoute(
  * @param onTagClick 标签点击回调
  * @param selectTagBottomSheetContent 选择标签底部抽屉
  * @param onReimbursableClick 可报销点击回调
- * @param onSaveClick 保存点击回调
+ * @param onSaveClick 保存点击回调，参数：(键盘编辑目标, 键盘文本) -> [Unit]
+ * @param onSaveAgainClick 再记点击回调（保存后不退出页面继续记账），参数：(键盘编辑目标, 键盘文本) -> [Unit]
  * @param onBackClick 返回点击回调
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -310,7 +323,8 @@ internal fun EditRecordScreen(
     onImageClick: () -> Unit,
     selectTagBottomSheetContent: @Composable () -> Unit,
     onReimbursableClick: () -> Unit,
-    onSaveClick: () -> Unit,
+    onSaveClick: (KeypadTarget, String) -> Unit,
+    onSaveAgainClick: (KeypadTarget, String) -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = rememberSnackbarHostState(),
@@ -356,6 +370,19 @@ internal fun EditRecordScreen(
             KeypadTarget.CONCESSIONS -> R.string.concessions
         },
     )
+    // 切换键盘编辑目标前先写回当前目标已输入的值（表达式待求值时跳过，避免写入非法值导致清空）
+    val switchKeypadTarget: (KeypadTarget) -> Unit = { newTarget ->
+        if (newTarget != keypadTarget) {
+            if (!CalculatorUtils.needShowEqualSign(keypadText)) {
+                when (keypadTarget) {
+                    KeypadTarget.AMOUNT -> onAmountChange(keypadText)
+                    KeypadTarget.CHARGES -> onChargesChange(keypadText)
+                    KeypadTarget.CONCESSIONS -> onConcessionsChange(keypadText)
+                }
+            }
+            keypadTarget = newTarget
+        }
+    }
 
     CbScaffold(
         modifier = modifier,
@@ -364,7 +391,6 @@ internal fun EditRecordScreen(
                 uiState = uiState,
                 selectedTab = selectedTypeCategory,
                 onTabSelected = onTypeCategorySelect,
-                onSaveClick = onSaveClick,
                 onBackClick = onBackClick,
             )
         },
@@ -376,13 +402,8 @@ internal fun EditRecordScreen(
                     expression = keypadText,
                     primaryColor = selectedTypeCategory.typeColor,
                     onExpressionChange = { keypadText = it },
-                    onConfirmClick = {
-                        when (keypadTarget) {
-                            KeypadTarget.AMOUNT -> onAmountChange(keypadText)
-                            KeypadTarget.CHARGES -> onChargesChange(keypadText)
-                            KeypadTarget.CONCESSIONS -> onConcessionsChange(keypadText)
-                        }
-                    },
+                    onSaveClick = { onSaveClick(keypadTarget, keypadText) },
+                    onSaveAgainClick = { onSaveAgainClick(keypadTarget, keypadText) },
                 )
             }
         },
@@ -496,7 +517,7 @@ internal fun EditRecordScreen(
                     typeListContent = typeListContent,
                     selectedTypeCategory = selectedTypeCategory,
                     typeColor = selectedTypeCategory.typeColor,
-                    onKeypadTargetChange = { keypadTarget = it },
+                    onKeypadTargetChange = switchKeypadTarget,
                     onRemarkChange = onRemarkChange,
                     onAssetClick = onAssetClick,
                     onRelatedAssetClick = onRelatedAssetClick,
@@ -1009,7 +1030,6 @@ internal fun EditRecordTopBar(
     uiState: EditRecordUiState,
     selectedTab: RecordTypeCategoryEnum,
     onTabSelected: (RecordTypeCategoryEnum) -> Unit,
-    onSaveClick: () -> Unit,
     onBackClick: () -> Unit,
 ) {
     if (uiState is EditRecordUiState.Success) {
@@ -1017,17 +1037,6 @@ internal fun EditRecordTopBar(
             selectedTabIndex = selectedTab.ordinal,
             indicatorColor = selectedTab.typeColor,
             onBackClick = onBackClick,
-            actions = {
-                // 保存：键盘常驻底部后改由标题栏右侧承担（原右下 FAB 会与键盘重叠）
-                CbIconButton(
-                    onClick = rememberHapticOnClick(onClick = onSaveClick),
-                ) {
-                    Icon(
-                        imageVector = CbIcons.SaveAs,
-                        contentDescription = stringResource(id = R.string.cd_confirm),
-                    )
-                }
-            },
         ) {
             RecordTypeCategoryEnum.entries.forEach { enum ->
                 CbTab(
