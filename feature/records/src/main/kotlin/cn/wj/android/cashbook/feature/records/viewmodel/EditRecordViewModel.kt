@@ -57,7 +57,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
@@ -78,7 +80,7 @@ import javax.inject.Inject
 @HiltViewModel
 class EditRecordViewModel @Inject constructor(
     private val typeRepository: TypeRepository,
-    assetRepository: AssetRepository,
+    private val assetRepository: AssetRepository,
     tagRepository: TagRepository,
     private val recordRepository: RecordRepository,
     private val settingRepository: SettingRepository,
@@ -132,7 +134,7 @@ class EditRecordViewModel @Inject constructor(
                 initialValue = emptyList(),
             )
 
-    /** 关联记录 */
+    /** 关联记录 id 列表（共享：避免 `_relatedRecordListData` 与保存逻辑各自采集导致重复查询） */
     private val _mutableRelatedRecordIdData = MutableStateFlow<List<Long>?>(null)
     private val _defaultRelatedRecordIdData = _recordIdData.mapLatest {
         recordRepository.getRelatedIdListById(it)
@@ -141,58 +143,79 @@ class EditRecordViewModel @Inject constructor(
         combine(_mutableRelatedRecordIdData, _defaultRelatedRecordIdData) { mutable, default ->
             mutable ?: default
         }
+            .shareIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                replay = 1,
+            )
+
+    /** 关联记录数据列表 */
     private val _relatedRecordListData = _relatedRecordIdData.mapLatest { ids ->
         ids.mapNotNull {
             recordRepository.queryById(it)
         }
     }
-    private val _relatedRecordTotalAmountData = _relatedRecordListData.mapLatest { list ->
-        var total = 0L
-        list.forEach {
-            total += (it.amount + it.charges - it.concessions)
-        }
-        total.toMoneyString()
-    }
 
-    /** 界面 UI 状态 */
-    val uiState =
+    /** 资产信息刷新版本号：保存后资产余额已变化，递增以强制重新查询（见 [prepareNextRecord]） */
+    private val _assetTextRefreshVersion = MutableStateFlow(0L)
+
+    /**
+     * 资产显示文本（资产名 + 余额）
+     *
+     * 异步补全 [EditRecordUiState.Success] 中的资产文本字段：
+     * 1. 不阻塞首帧——首帧先给出资产文本为空的骨架，查询完成后自动补全；
+     * 2. 资产 id 未变化时不重复查询（打开页面、切换资产、保存后刷新才会真正查库）。
+     */
+    private val _assetTextData =
+        combine(
+            _displayRecordData.map { it.assetId to it.relatedAssetId }.distinctUntilChanged(),
+            _assetTextRefreshVersion,
+        ) { ids, _ -> ids }
+            .mapLatest { (assetId, relatedAssetId) ->
+                AssetTextData(
+                    assetText = queryAssetText(assetId),
+                    relatedAssetText = queryAssetText(relatedAssetId),
+                )
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = AssetTextData.EMPTY,
+            )
+
+    /** 查询资产显示文本，资产不存在时返回空字符串 */
+    private suspend fun queryAssetText(assetId: Long): String =
+        assetRepository.getAssetById(assetId)?.let { asset ->
+            val displayBalance = if (asset.type.isCreditCard) {
+                (asset.totalAmount - asset.balance).toMoneyCNY()
+            } else {
+                asset.balance.toMoneyCNY()
+            }
+            "${asset.name}($displayBalance)"
+        }.orEmpty()
+
+    /** 基础界面状态：仅依赖内存数据与轻量计算，不做资产等数据库查询，保证首帧不被阻塞 */
+    private val _baseUiState =
         combine(
             _displayRecordData,
-            _relatedRecordTotalAmountData,
+            _relatedRecordListData,
             settingRepository.appSettingsModel,
-        ) { record, relatedAmount, model ->
-            val assetText = assetRepository.getAssetById(record.assetId)?.let { asset ->
-                val displayBalance = if (asset.type.isCreditCard) {
-                    (asset.totalAmount - asset.balance).toMoneyCNY()
-                } else {
-                    asset.balance.toMoneyCNY()
-                }
-                "${asset.name}($displayBalance)"
-            }.orEmpty()
-            val relatedAssetText =
-                assetRepository.getAssetById(record.relatedAssetId)?.let { asset ->
-                    val displayBalance = if (asset.type.isCreditCard) {
-                        (asset.totalAmount - asset.balance).toMoneyCNY()
-                    } else {
-                        asset.balance.toMoneyCNY()
-                    }
-                    "${asset.name}($displayBalance)"
-                }.orEmpty()
-            val needRelated = typeRepository.needRelated(record.typeId)
+        ) { record, relatedList, model ->
             EditRecordUiState.Success(
                 amountText = record.amount.toMoneyFormat().ifBlank { "0" },
                 chargesText = record.charges.clearZero(),
                 concessionsText = record.concessions.clearZero(),
                 remarkText = record.remark,
                 selectedAssetId = record.assetId,
-                assetText = assetText,
-                relatedAssetText = relatedAssetText,
+                // 资产文本由 _assetTextData 异步补全，首帧不等待数据库查询
+                assetText = "",
+                relatedAssetText = "",
                 dateTimeText = record.recordTime.toDateTimeString(),
                 reimbursable = record.reimbursable,
                 selectedTypeId = record.typeId,
-                needRelated = needRelated,
-                relatedCount = _relatedRecordListData.first().size,
-                relatedAmount = relatedAmount,
+                needRelated = typeRepository.needRelated(record.typeId),
+                relatedCount = relatedList.size,
+                relatedAmount = relatedList.sumOf { it.amount + it.charges - it.concessions }.toMoneyString(),
                 imageQuality = model.imageQuality,
             )
         }
@@ -201,6 +224,37 @@ class EditRecordViewModel @Inject constructor(
                 started = SharingStarted.WhileSubscribed(5_000),
                 initialValue = EditRecordUiState.Loading,
             )
+
+    /** 界面 UI 状态：基础状态 + 异步补全的资产文本 */
+    val uiState =
+        combine(
+            _baseUiState,
+            _assetTextData,
+        ) { base, assetText ->
+            if (base is EditRecordUiState.Success) {
+                base.copy(
+                    assetText = assetText.assetText,
+                    relatedAssetText = assetText.relatedAssetText,
+                )
+            } else {
+                base
+            }
+        }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = EditRecordUiState.Loading,
+            )
+
+    /** 资产显示文本数据 */
+    private data class AssetTextData(
+        val assetText: String,
+        val relatedAssetText: String,
+    ) {
+        companion object {
+            val EMPTY = AssetTextData(assetText = "", relatedAssetText = "")
+        }
+    }
 
     /** 类型数据 */
     val defaultTypeIdData = _defaultRecordData.mapLatest { it.typeId }
@@ -243,11 +297,16 @@ class EditRecordViewModel @Inject constructor(
             tagRepository.getRelatedTag(it)
         }
 
-    /** 最终用于显示的标签数据 */
+    /** 最终用于显示的标签数据（共享：`displayTagIdListData` 与 `tagTextData` 复用同一次查询） */
     private val _displayTagListData =
         combine(_mutableTagListData, _defaultTagListData) { mutable, default ->
             mutable ?: default
         }
+            .shareIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                replay = 1,
+            )
 
     /** 实际显示的标签id列表数据，用于控制选择标签Sheet中标签的选中状态 */
     val displayTagIdListData = _displayTagListData
@@ -517,6 +576,8 @@ class EditRecordViewModel @Inject constructor(
             _mutableImageData.tryEmit(null)
             _mutableRelatedRecordIdData.tryEmit(null)
             _mutableRecordData.tryEmit(current.copy(id = -1L, amount = 0L))
+            // 上一笔已入库，资产余额发生变化，递增版本号强制刷新资产文本
+            _assetTextRefreshVersion.value = _assetTextRefreshVersion.value + 1
             inSave = false
         }
     }

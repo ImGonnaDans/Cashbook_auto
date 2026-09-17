@@ -17,7 +17,12 @@
 package cn.wj.android.cashbook.feature.records.viewmodel
 
 import cn.wj.android.cashbook.core.common.FIXED_TYPE_ID_REFUND
+import cn.wj.android.cashbook.core.data.repository.AssetRepository
+import cn.wj.android.cashbook.core.data.repository.RecordRepository
+import cn.wj.android.cashbook.core.data.repository.TagRepository
 import cn.wj.android.cashbook.core.model.enums.RecordTypeCategoryEnum
+import cn.wj.android.cashbook.core.model.model.AssetModel
+import cn.wj.android.cashbook.core.model.model.TagModel
 import cn.wj.android.cashbook.core.testing.data.createAssetModel
 import cn.wj.android.cashbook.core.testing.data.createRecordModel
 import cn.wj.android.cashbook.core.testing.data.createRecordTypeModel
@@ -1293,6 +1298,81 @@ class EditRecordViewModelTest {
 
         val record = viewModel.currentRecord().first()
         assertThat(record.amount).isEqualTo(2550L)
+    }
+
+    // region 性能：避免重复查询
+
+    @Test
+    fun when_collect_uiState_then_related_and_tag_queried_once_and_asset_not_requeried() = runTest {
+        // 用接口委托做查询计数：验证共享流去重（标签 / 关联记录各只查一次）
+        // 与「资产 id 未变化时不重复查询资产」
+        val relatedIdCalls = mutableListOf<Long>()
+        val relatedTagCalls = mutableListOf<Long>()
+        val assetCalls = mutableListOf<Long>()
+        val countingRecordRepository = object : RecordRepository by recordRepository {
+            override suspend fun getRelatedIdListById(id: Long): List<Long> {
+                relatedIdCalls += id
+                return recordRepository.getRelatedIdListById(id)
+            }
+        }
+        val countingTagRepository = object : TagRepository by tagRepository {
+            override suspend fun getRelatedTag(recordId: Long): List<TagModel> {
+                relatedTagCalls += recordId
+                return tagRepository.getRelatedTag(recordId)
+            }
+        }
+        val countingAssetRepository = object : AssetRepository by assetRepository {
+            override suspend fun getAssetById(assetId: Long): AssetModel? {
+                assetCalls += assetId
+                return assetRepository.getAssetById(assetId)
+            }
+        }
+        val countingViewModel = EditRecordViewModel(
+            typeRepository = typeRepository,
+            assetRepository = countingAssetRepository,
+            tagRepository = countingTagRepository,
+            recordRepository = countingRecordRepository,
+            settingRepository = settingRepository,
+            getDefaultRecordUseCase = GetDefaultRecordUseCase(
+                recordRepository = countingRecordRepository,
+                typeRepository = typeRepository,
+                coroutineContext = dispatcherRule.testDispatcher,
+            ),
+            saveRecordUseCase = SaveRecordUseCase(
+                recordRepository = countingRecordRepository,
+                typeRepository = typeRepository,
+                coroutineContext = dispatcherRule.testDispatcher,
+            ),
+        )
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            countingViewModel.uiState.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            countingViewModel.displayTagIdListData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            countingViewModel.tagTextData.collect {}
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            countingViewModel.selectedTypeCategoryData.collect {}
+        }
+
+        countingViewModel.initRecordId(-1L)
+        advanceUntilIdle()
+
+        // 标签共享流：displayTagIdListData 与 tagTextData 两个下游只触发一次查询
+        assertThat(relatedTagCalls.size).isEqualTo(1)
+        // 关联记录 id 共享流：列表派生与保存逻辑复用同一次查询
+        assertThat(relatedIdCalls.size).isEqualTo(1)
+        // 资产 + 关联资产最多各一次
+        val assetCallsAfterOpen = assetCalls.size
+        assertThat(assetCallsAfterOpen <= 2).isTrue()
+
+        // 未修改资产 id 的字段编辑不应再次查询资产
+        countingViewModel.updateRemark("晚餐")
+        advanceUntilIdle()
+        assertThat(assetCalls.size).isEqualTo(assetCallsAfterOpen)
     }
 
     // endregion

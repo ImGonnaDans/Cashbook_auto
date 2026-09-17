@@ -45,76 +45,74 @@ class GetRecordTypeListUseCase @Inject constructor(
         typeCategory: RecordTypeCategoryEnum,
         selectedTypeId: Long,
     ): List<RecordTypeEntity> = withContext(ioCoroutineContext) {
-        when (typeCategory) {
+        // 一级类型：1 次查询
+        val firstTypeList = when (typeCategory) {
             RecordTypeCategoryEnum.EXPENDITURE -> typeRepository.firstExpenditureTypeListData
             RecordTypeCategoryEnum.INCOME -> typeRepository.firstIncomeTypeListData
             RecordTypeCategoryEnum.TRANSFER -> typeRepository.firstTransferTypeListData
+        }.first()
+            .sortedBy { it.sort }
+        // 二级类型：一次批量查询后在内存按 parentId 分组（原实现为每个一级类型各查一次，N+1）
+        val secondTypeMap = typeRepository.getSecondRecordTypeMapByParentIds(firstTypeList.map { it.id })
+        val typeEntityList = firstTypeList.map { model ->
+            model.asEntity(
+                child = secondTypeMap[model.id].orEmpty()
+                    .map { it.asEntity() }
+                    .sortedBy { it.sort },
+            )
         }
-            .map { list ->
-                list.map { model ->
-                    model.asEntity(
-                        child = typeRepository.getSecondRecordTypeListByParentId(model.id)
-                            .map { it.asEntity() }
-                            .sortedBy { it.sort },
+        var selectedEntity = typeRepository.getRecordTypeById(selectedTypeId)?.asEntity()
+        if (null == selectedEntity || selectedEntity.typeCategory != typeCategory) {
+            selectedEntity = typeEntityList.first()
+        }
+        // 最终输出结果
+        val result = arrayListOf<RecordTypeEntity>()
+        // 是否选中一级类型
+        val selectFirst = selectedEntity.parentId == -1L
+        // 更新选中状态
+        typeEntityList.forEach { first ->
+            // 判断当前类型是否选中
+            val selected = if (selectFirst) {
+                first.id == selectedEntity.id
+            } else {
+                first.id == selectedEntity.parentId
+            }
+            // 更新类型选中状态并添加到结果中
+            result.add(first.copy(selected = selected))
+            if (selected) {
+                // 如果一级类型选中，向后面添加它的二级类型
+                val childCount = first.child.size
+                first.child.forEachIndexed { index, second ->
+                    // 二级分类是否选中
+                    val secondSelected = if (selectFirst) {
+                        false
+                    } else {
+                        second.id == selectedEntity.id
+                    }
+                    // 判断是第一个还是最后一个
+                    val shapeType = when (index) {
+                        0 -> -1
+                        childCount - 1 -> 1
+                        else -> 0
+                    }
+                    result.add(
+                        second.copy(
+                            selected = secondSelected,
+                            shapeType = shapeType,
+                        ),
                     )
                 }
-                    .sortedBy { it.sort }
             }
-            .map { list ->
-                var selectedEntity = typeRepository.getRecordTypeById(selectedTypeId)?.asEntity()
-                if (null == selectedEntity || selectedEntity.typeCategory != typeCategory) {
-                    selectedEntity = list.first()
-                }
-                // 最终输出结果
-                val result = arrayListOf<RecordTypeEntity>()
-                // 是否选中一级类型
-                val selectFirst = selectedEntity.parentId == -1L
-                // 更新选中状态
-                list.forEach { first ->
-                    // 判断当前类型是否选中
-                    val selected = if (selectFirst) {
-                        first.id == selectedEntity.id
-                    } else {
-                        first.id == selectedEntity.parentId
-                    }
-                    // 更新类型选中状态并添加到结果中
-                    result.add(first.copy(selected = selected))
-                    if (selected) {
-                        // 如果一级类型选中，向后面添加它的二级类型
-                        val childCount = first.child.size
-                        first.child.forEachIndexed { index, second ->
-                            // 二级分类是否选中
-                            val secondSelected = if (selectFirst) {
-                                false
-                            } else {
-                                second.id == selectedEntity.id
-                            }
-                            // 判断是第一个还是最后一个
-                            val shapeType = when (index) {
-                                0 -> -1
-                                childCount - 1 -> 1
-                                else -> 0
-                            }
-                            result.add(
-                                second.copy(
-                                    selected = secondSelected,
-                                    shapeType = shapeType,
-                                ),
-                            )
-                        }
-                    }
-                }
-                // 在末尾添加设置数据
-                result.add(RECORD_TYPE_SETTINGS)
-                if (typeCategory == RecordTypeCategoryEnum.INCOME) {
-                    // 更新退款、报销类型标记
-                    result.map {
-                        it.copy(needRelated = typeRepository.needRelated(it.id))
-                    }
-                } else {
-                    result
-                }
+        }
+        // 在末尾添加设置数据
+        result.add(RECORD_TYPE_SETTINGS)
+        if (typeCategory == RecordTypeCategoryEnum.INCOME) {
+            // 更新退款、报销类型标记
+            result.map {
+                it.copy(needRelated = typeRepository.needRelated(it.id))
             }
-            .first()
+        } else {
+            result
+        }
     }
 }

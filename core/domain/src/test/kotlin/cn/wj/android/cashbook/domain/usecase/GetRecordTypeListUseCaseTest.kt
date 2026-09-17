@@ -151,4 +151,50 @@ class GetRecordTypeListUseCaseTest {
         assertThat(refundType).isNotNull()
         assertThat(refundType!!.needRelated).isTrue()
     }
+
+    @Test
+    fun when_multiple_first_level_types_then_second_level_batched_by_parent() = runTest {
+        typeRepository.addType(
+            createRecordTypeModel(
+                id = 1L,
+                name = "餐饮",
+                typeCategory = RecordTypeCategoryEnum.EXPENDITURE,
+                sort = 0,
+            ),
+        )
+        typeRepository.addType(
+            createRecordTypeModel(
+                id = 2L,
+                name = "交通",
+                typeCategory = RecordTypeCategoryEnum.EXPENDITURE,
+                sort = 1,
+            ),
+        )
+        typeRepository.addType(
+            createRecordTypeModel(
+                id = 10L,
+                parentId = 1L,
+                name = "午餐",
+                typeLevel = TypeLevelEnum.SECOND,
+                typeCategory = RecordTypeCategoryEnum.EXPENDITURE,
+            ),
+        )
+        typeRepository.addType(
+            createRecordTypeModel(
+                id = 20L,
+                parentId = 2L,
+                name = "公交",
+                typeLevel = TypeLevelEnum.SECOND,
+                typeCategory = RecordTypeCategoryEnum.EXPENDITURE,
+            ),
+        )
+
+        // 批量查询到的二级类型应只挂到各自的父类型下（未选中的父类型不展开）
+        val result = useCase(RecordTypeCategoryEnum.EXPENDITURE, 20L)
+
+        assertThat(result.any { it.name == "公交" }).isTrue()
+        assertThat(result.any { it.name == "午餐" }).isFalse()
+        val transport = result.first { it.name == "交通" }
+        assertThat(transport.child.map { it.name }).containsExactly("公交")
+    }
 }

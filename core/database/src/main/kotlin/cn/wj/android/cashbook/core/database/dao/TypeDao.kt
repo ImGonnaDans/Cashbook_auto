@@ -59,6 +59,9 @@ interface TypeDao {
     @Query("SELECT * FROM db_type WHERE parent_id=:parentId")
     suspend fun queryByParentId(parentId: Long): List<TypeTable>
 
+    @Query("SELECT * FROM db_type WHERE parent_id IN (:parentIds)")
+    suspend fun queryByParentIds(parentIds: List<Long>): List<TypeTable>
+
     @Query("SELECT * FROM db_type WHERE id=:typeId")
     suspend fun queryById(typeId: Long): TypeTable?
 

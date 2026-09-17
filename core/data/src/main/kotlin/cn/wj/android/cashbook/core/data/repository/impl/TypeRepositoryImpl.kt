@@ -116,6 +116,21 @@ class TypeRepositoryImpl @Inject constructor(
                 }
         }
 
+    override suspend fun getSecondRecordTypeMapByParentIds(
+        parentIds: List<Long>,
+    ): Map<Long, List<RecordTypeModel>> = withContext(coroutineContext) {
+        if (parentIds.isEmpty()) {
+            emptyMap()
+        } else {
+            typeDao.queryByParentIds(parentIds.distinct())
+                .map {
+                    val id = it.id ?: -1L
+                    it.asModel(id == FIXED_TYPE_ID_REFUND || id == FIXED_TYPE_ID_REIMBURSE)
+                }
+                .groupBy { it.parentId }
+        }
+    }
+
     override suspend fun needRelated(typeId: Long): Boolean = withContext(coroutineContext) {
         typeId == FIXED_TYPE_ID_REFUND || typeId == FIXED_TYPE_ID_REIMBURSE
     }

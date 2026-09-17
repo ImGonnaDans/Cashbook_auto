@@ -16,16 +16,21 @@
 
 package cn.wj.android.cashbook.core.design.component
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 /**
- * 横向网格布局
+ * 横向网格布局（懒加载）
+ *
+ * 基于 [LazyVerticalGrid] 实现，只组合可见区域内的格子：类型等条目较多的场景下，
+ * 首帧与每次重组的组合成本由 O(全部条目) 降为 O(可见条目)。
+ *
+ * 注意：调用方必须为网格提供**有界高度**（例如 `Modifier.heightIn(max = ...)`），
+ * 不可放在 `Column(Modifier.verticalScroll(...))` 这类高度无界的容器里，否则无法测量。
  *
  * > [王杰](mailto:15555650921@163.com) 创建于 2023/12/24
  */
@@ -36,29 +41,16 @@ fun <T> CbVerticalGrid(
     modifier: Modifier = Modifier,
     content: @Composable (T) -> Unit,
 ) {
-    Column(
-        modifier = modifier,
-    ) {
-        if (items.isEmpty()) {
-            Spacer(modifier = Modifier.fillMaxWidth())
-        } else {
-            val fixedSize = if (items.size % columns != 0) {
-                ((items.size / columns) + 1) * columns
-            } else {
-                items.size
-            }
-            val columnCount = fixedSize / columns
-            for (col in 0 until columnCount) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    for (r in 0 until columns) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            val index = col * columns + r
-                            if (index in items.indices) {
-                                content(items[index])
-                            }
-                        }
-                    }
-                }
+    if (items.isEmpty()) {
+        // 空列表保留一个空占位：与原实现一致，避免根节点无可绘制内容
+        Spacer(modifier = modifier.fillMaxWidth())
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columns),
+            modifier = modifier,
+        ) {
+            items(count = items.size) { index ->
+                content(items[index])
             }
         }
     }

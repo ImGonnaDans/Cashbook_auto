@@ -84,6 +84,11 @@ class FakeTypeRepository : TypeRepository {
         return types.filter { it.parentId == parentId && it.typeLevel == TypeLevelEnum.SECOND }
     }
 
+    override suspend fun getSecondRecordTypeMapByParentIds(parentIds: List<Long>): Map<Long, List<RecordTypeModel>> {
+        return types.filter { it.parentId in parentIds && it.typeLevel == TypeLevelEnum.SECOND }
+            .groupBy { it.parentId }
+    }
+
     override suspend fun needRelated(typeId: Long): Boolean {
         return typeId == FIXED_TYPE_ID_REFUND || typeId == FIXED_TYPE_ID_REIMBURSE
     }

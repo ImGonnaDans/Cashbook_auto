@@ -134,6 +134,9 @@ import java.util.Calendar
 /** 类型区最小高度（避免小屏时被键盘与标题栏挤压成 0 高） */
 private val TypeAreaMinHeight = 160.dp
 
+/** 类型区最大高度：为类型网格提供有界高度以便懒加载，超出部分由类型区自身滚动 */
+private val TypeAreaMaxHeight = 320.dp
+
 /**
  * 编辑记录
  *
@@ -621,11 +624,12 @@ private fun EditRecordScaffoldContent(
                     )
 
                     // 类型列表：位于备注栏下方并自身垂直滚动（排倒数的类型从备注栏下方滚入）；
-                    // 设最小高度避免小屏（键盘+标题栏挤压）时被压成 0 高，剩余内容由外层滚动可达
+                    // 同时给出上下界：下界避免小屏（键盘+标题栏挤压）时被压成 0 高，
+                    // 上界让懒加载网格有界高度——无界高度会退化成一次性组合全部类型，造成首帧卡顿
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = TypeAreaMinHeight),
+                            .heightIn(min = TypeAreaMinHeight, max = TypeAreaMaxHeight),
                     ) {
                         typeListContent()
                     }

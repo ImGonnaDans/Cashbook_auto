@@ -99,6 +99,10 @@ class FakeTypeDao : TypeDao {
         return typesFlow.value.filter { it.parentId == parentId }
     }
 
+    override suspend fun queryByParentIds(parentIds: List<Long>): List<TypeTable> {
+        return typesFlow.value.filter { it.parentId in parentIds }
+    }
+
     override suspend fun queryById(typeId: Long): TypeTable? {
         return typesFlow.value.firstOrNull { it.id == typeId }
     }

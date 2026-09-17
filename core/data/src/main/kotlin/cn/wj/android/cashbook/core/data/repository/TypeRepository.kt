@@ -52,6 +52,12 @@ interface TypeRepository {
 
     suspend fun getSecondRecordTypeListByParentId(parentId: Long): List<RecordTypeModel>
 
+    /**
+     * 批量查询多个一级类型 id 对应的二级类型，一次查询避免逐个父类型查询（N+1）。
+     * 返回 parentId -> 二级类型列表 的映射；没有子类型的父类型不会出现在结果中。
+     */
+    suspend fun getSecondRecordTypeMapByParentIds(parentIds: List<Long>): Map<Long, List<RecordTypeModel>>
+
     suspend fun needRelated(typeId: Long): Boolean
 
     suspend fun isReimburseType(typeId: Long): Boolean
