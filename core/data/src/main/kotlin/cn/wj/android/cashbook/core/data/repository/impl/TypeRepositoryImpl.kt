@@ -182,6 +182,13 @@ class TypeRepositoryImpl @Inject constructor(
         typeDataVersion.updateVersion()
     }
 
+    override suspend fun insertType(model: RecordTypeModel): Long = withContext(coroutineContext) {
+        // id 置空以使用自增主键（负数为内置固定分类，不可占用）
+        val newId = typeDao.insertType(model.asTable().copy(id = null))
+        typeDataVersion.updateVersion()
+        newId
+    }
+
     override suspend fun generateSortById(id: Long, parentId: Long): Int =
         withContext(coroutineContext) {
             var sort = getRecordTypeById(id)?.sort ?: -1

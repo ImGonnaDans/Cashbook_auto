@@ -30,6 +30,7 @@ dependencies {
     implementation(projects.core.common)
     implementation(projects.core.data)
     implementation(projects.core.database)
+    implementation(projects.core.domain)
 
     testImplementation(projects.core.testing)
     // 导入流程端到端测试需 Robolectric 提供 XmlPullParser（WechatBillParser 解析 xlsx）

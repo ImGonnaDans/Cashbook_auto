@@ -33,6 +33,12 @@ data class ImportPreviewItem(
     val mappedAssetId: Long,
     val duplicateStatus: DuplicateStatus,
     val selected: Boolean,
+    /**
+     * 待创建的一级分类名称（支付宝账单分类映射未命中二级分类时）
+     *
+     * 非空表示该条记录的分类将在确认导入时创建，其 [mappedTypeId] 由创建结果决定。
+     */
+    val pendingCreateTypeName: String? = null,
 )
 
 /** 重复检测结果 */

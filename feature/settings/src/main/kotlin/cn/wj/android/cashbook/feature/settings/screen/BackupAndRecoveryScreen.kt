@@ -16,7 +16,9 @@
 
 package cn.wj.android.cashbook.feature.settings.screen
 
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -101,6 +103,7 @@ import cn.wj.android.cashbook.core.design.preview.PreviewTheme
 import cn.wj.android.cashbook.core.design.theme.rememberHapticOnClick
 import cn.wj.android.cashbook.core.model.enums.AutoBackupModeEnum
 import cn.wj.android.cashbook.core.model.model.BackupModel
+import cn.wj.android.cashbook.core.model.model.BillSource
 import cn.wj.android.cashbook.core.model.model.BooksModel
 import cn.wj.android.cashbook.core.ui.DevicePreviews
 import cn.wj.android.cashbook.core.ui.DialogState
@@ -123,7 +126,7 @@ import java.util.TimeZone
 internal fun BackupAndRecoveryRoute(
     onRequestPopBackStack: () -> Unit,
     onShowSnackbar: suspend (String, String?) -> SnackbarResult,
-    onRequestNaviToRecordImport: (String) -> Unit,
+    onRequestNaviToRecordImport: (String, BillSource) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BackupAndRecoveryViewModel = hiltViewModel(),
 ) {
@@ -215,7 +218,7 @@ internal fun BackupAndRecoveryScreen(
     onNoWifiConfirmBackupClick: (Boolean) -> Unit,
     onAutoBackupModeSelected: (AutoBackupModeEnum) -> Unit,
     onDbMigrateClick: () -> Unit,
-    onRequestNaviToRecordImport: (String) -> Unit,
+    onRequestNaviToRecordImport: (String, BillSource) -> Unit,
     booksList: List<BooksModel>,
     currentBook: BooksModel?,
     exportState: ExportState,
@@ -504,7 +507,7 @@ internal fun BackupAndRecoveryScaffoldContent(
     onKeepLatestBackupChanged: (Boolean) -> Unit,
     onMobileNetworkBackupEnableChanged: (Boolean) -> Unit,
     onDbMigrateClick: () -> Unit,
-    onRequestNaviToRecordImport: (String) -> Unit,
+    onRequestNaviToRecordImport: (String, BillSource) -> Unit,
     booksList: List<BooksModel>,
     currentBook: BooksModel?,
     exportState: ExportState,
@@ -802,35 +805,18 @@ internal fun BackupAndRecoveryScaffoldContent(
             modifier = Modifier.padding(start = 16.dp),
         )
 
-        val selectFileLauncher = rememberLauncherForActivityResult(
+        val wechatFileLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.OpenDocument(),
             onResult = { uri ->
-                if (uri != null) {
-                    // 在回调中立即复制文件到缓存，避免 URI 权限在导航后失效
-                    try {
-                        // 用原始文件名保存，确保导入界面显示正确名称
-                        val displayName = context.contentResolver.query(
-                            uri,
-                            arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
-                            null,
-                            null,
-                            null,
-                        )?.use { cursor ->
-                            if (cursor.moveToFirst()) cursor.getString(0) else null
-                        } ?: "import_bill_temp.xlsx"
-                        val cacheFile = java.io.File(context.cacheDir, displayName)
-                        context.contentResolver.openInputStream(uri)?.use { input ->
-                            cacheFile.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                        onRequestNaviToRecordImport(cacheFile.absolutePath)
-                    } catch (e: Exception) {
-                        // 文件复制失败，权限不足或文件无法读取
-                        funLogger("BackupAndRecovery")
-                            .e(e, "copy import file failed")
-                    }
-                }
+                uri?.let { copyImportBillToCache(context, it) }
+                    ?.let { path -> onRequestNaviToRecordImport(path, BillSource.WECHAT) }
+            },
+        )
+        val alipayFileLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocument(),
+            onResult = { uri ->
+                uri?.let { copyImportBillToCache(context, it) }
+                    ?.let { path -> onRequestNaviToRecordImport(path, BillSource.ALIPAY) }
             },
         )
 
@@ -841,7 +827,21 @@ internal fun BackupAndRecoveryScaffoldContent(
             },
             modifier = Modifier.clickable(
                 onClick = rememberHapticOnClick {
-                    selectFileLauncher.launch(
+                    wechatFileLauncher.launch(
+                        arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                    )
+                },
+            ),
+        )
+
+        CbListItem(
+            headlineContent = { Text(text = stringResource(id = R.string.import_from_alipay)) },
+            supportingContent = {
+                Text(text = stringResource(id = R.string.import_from_alipay_hint))
+            },
+            modifier = Modifier.clickable(
+                onClick = rememberHapticOnClick {
+                    alipayFileLauncher.launch(
                         arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
                     )
                 },
@@ -1197,7 +1197,40 @@ private fun BackupAndRecoveryScreenPreview() {
         BackupAndRecoveryRoute(
             onRequestPopBackStack = {},
             onShowSnackbar = { _, _ -> SnackbarResult.Dismissed },
-            onRequestNaviToRecordImport = {},
+            onRequestNaviToRecordImport = { _, _ -> },
         )
+    }
+}
+
+/**
+ * 复制选择的账单文件到缓存目录（避免 URI 权限在导航后失效）
+ *
+ * @param context 上下文
+ * @param uri 选择的文件 URI
+ * @return 缓存文件绝对路径；复制失败返回 null
+ */
+private fun copyImportBillToCache(context: Context, uri: Uri): String? {
+    return try {
+        // 用原始文件名保存，确保导入界面显示正确名称
+        val displayName = context.contentResolver.query(
+            uri,
+            arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        } ?: "import_bill_temp.xlsx"
+        val cacheFile = java.io.File(context.cacheDir, displayName)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            cacheFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        cacheFile.absolutePath
+    } catch (e: Exception) {
+        // 文件复制失败，权限不足或文件无法读取
+        funLogger("BackupAndRecovery").e(e, "copy import file failed")
+        null
     }
 }

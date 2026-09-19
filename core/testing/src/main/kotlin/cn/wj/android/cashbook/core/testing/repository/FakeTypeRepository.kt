@@ -89,6 +89,13 @@ class FakeTypeRepository : TypeRepository {
             .groupBy { it.parentId }
     }
 
+    override suspend fun insertType(model: RecordTypeModel): Long {
+        val newId = (types.maxOfOrNull { it.id } ?: 0L) + 1
+        types.add(model.copy(id = newId))
+        updateFlows()
+        return newId
+    }
+
     override suspend fun needRelated(typeId: Long): Boolean {
         return typeId == FIXED_TYPE_ID_REFUND || typeId == FIXED_TYPE_ID_REIMBURSE
     }

@@ -19,15 +19,11 @@ package cn.wj.android.cashbook.core.data.helper
 import androidx.annotation.VisibleForTesting
 import cn.wj.android.cashbook.core.common.ext.logger
 import cn.wj.android.cashbook.core.model.model.BillDirection
+import cn.wj.android.cashbook.core.model.model.BillParseResult
 import cn.wj.android.cashbook.core.model.model.BillSummary
 import cn.wj.android.cashbook.core.model.model.ImportedBillItem
 import org.xmlpull.v1.XmlPullParser
-import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
-import java.util.zip.ZipInputStream
 
 /**
  * 微信支付 xlsx 账单解析器
@@ -46,9 +42,6 @@ object WechatBillParser {
     /** 微信账单列数 */
     private const val COLUMN_COUNT = 11
 
-    /** 时间格式 */
-    private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-
     /**
      * 解析微信支付 xlsx 账单文件
      *
@@ -60,13 +53,13 @@ object WechatBillParser {
      * @param inputStream xlsx 文件输入流
      * @return 解析结果，包含账单条目列表和汇总信息；解析失败返回 null
      */
-    fun parse(inputStream: InputStream): ParseResult? {
+    fun parse(inputStream: InputStream): BillParseResult? {
         return try {
-            val zipData = readZipEntries(inputStream)
+            val zipData = XlsxReader.readZipEntries(inputStream)
             val sharedStrings = zipData.sharedStrings ?: return null
             val sheetData = zipData.sheetData ?: return null
 
-            val stringPool = parseSharedStrings(sharedStrings)
+            val stringPool = XlsxReader.parseSharedStrings(sharedStrings)
             val rows = parseSheet(sheetData, stringPool)
             val items = rows.mapNotNull { convertToItem(it) }
 
@@ -80,77 +73,11 @@ object WechatBillParser {
                 expenditureAmount = items.filter { it.direction == BillDirection.EXPENDITURE }.sumOf { it.amount },
             )
 
-            ParseResult(items = items, summary = summary)
+            BillParseResult(items = items, summary = summary)
         } catch (e: Exception) {
             logger().e(e, "parse wechat bill failed")
             null
         }
-    }
-
-    /**
-     * 从 ZIP 中读取所需的 XML 数据
-     */
-    private fun readZipEntries(inputStream: InputStream): ZipData {
-        var sharedStrings: ByteArray? = null
-        var sheetData: ByteArray? = null
-
-        ZipInputStream(inputStream).use { zip ->
-            var entry = zip.nextEntry
-            while (entry != null) {
-                when (entry.name) {
-                    "xl/sharedStrings.xml" -> sharedStrings = zip.readBytes()
-                    "xl/worksheets/sheet1.xml" -> sheetData = zip.readBytes()
-                }
-                zip.closeEntry()
-                entry = zip.nextEntry
-            }
-        }
-        return ZipData(sharedStrings = sharedStrings, sheetData = sheetData)
-    }
-
-    /**
-     * 解析 sharedStrings.xml，提取字符串池
-     *
-     * 结构示例：
-     * ```xml
-     * <sst>
-     *   <si><t>文本内容</t></si>
-     *   ...
-     * </sst>
-     * ```
-     */
-    private fun parseSharedStrings(data: ByteArray): List<String> {
-        val strings = mutableListOf<String>()
-        val parser = createParser(data)
-        var inT = false
-        val textBuilder = StringBuilder()
-
-        var eventType = parser.eventType
-        while (eventType != XmlPullParser.END_DOCUMENT) {
-            when (eventType) {
-                XmlPullParser.START_TAG -> {
-                    if (parser.name == "t") {
-                        inT = true
-                        textBuilder.clear()
-                    }
-                }
-
-                XmlPullParser.TEXT -> {
-                    if (inT) {
-                        textBuilder.append(parser.text)
-                    }
-                }
-
-                XmlPullParser.END_TAG -> {
-                    if (parser.name == "t") {
-                        inT = false
-                        strings.add(textBuilder.toString())
-                    }
-                }
-            }
-            eventType = parser.next()
-        }
-        return strings
     }
 
     /**
@@ -169,7 +96,7 @@ object WechatBillParser {
      */
     private fun parseSheet(data: ByteArray, stringPool: List<String>): List<List<String>> {
         val rows = mutableListOf<List<String>>()
-        val parser = createParser(data)
+        val parser = XlsxReader.createParser(data)
 
         var currentRow = 0
         var currentCellType = ""
@@ -296,66 +223,15 @@ object WechatBillParser {
     }
 
     /**
-     * Excel 序列号与 Unix 时间戳的天数差（1899-12-30 到 1970-01-01）
-     *
-     * Excel 以 1899-12-30 为第 0 天（含 Lotus 1-2-3 闰年 Bug），
-     * Unix 以 1970-01-01 为第 0 天，两者相差 25569 天。
-     */
-    private const val EXCEL_EPOCH_DIFF = 25569
-
-    /** 一天的毫秒数 */
-    private const val MS_PER_DAY = 24 * 60 * 60 * 1000L
-
-    /**
      * 解析日期时间字符串
      *
      * 支持格式：
      * - ISO 格式：2026-03-26T11:50:04（xlsx 的 t="d" 类型）
      * - 标准格式：2026-03-26 11:50:04
      * - Excel 序列号：46107.493101851855（xlsx 无 t 属性、通过 style 格式化的日期）
+     *
+     * 实现复用 [XlsxReader.parseDateTime]，与支付宝账单解析器共用同一套时间换算逻辑。
      */
     @VisibleForTesting
-    internal fun parseDateTime(dateStr: String): Long? {
-        val trimmed = dateStr.trim()
-        // 先尝试标准日期格式
-        try {
-            val normalized = trimmed.replace("T", " ")
-            val result = DATE_FORMAT.parse(normalized)?.time
-            if (result != null) return result
-        } catch (_: Exception) {
-            // 标准格式解析失败，继续尝试 Excel 序列号
-        }
-        // 尝试 Excel 序列号格式
-        return try {
-            val serial = trimmed.toDouble()
-            if (serial < 1) return null // 无效序列号
-            // 序列号中的时间是本地时间（微信账单注明 UTC+8），
-            // 直接换算得到的是 UTC 解释的毫秒值，减去时区偏移得到正确 UTC 时间戳
-            val rawMs = ((serial - EXCEL_EPOCH_DIFF) * MS_PER_DAY).toLong()
-            rawMs - TimeZone.getDefault().getOffset(rawMs)
-        } catch (_: Exception) {
-            logger().e("parse date failed: $dateStr")
-            null
-        }
-    }
-
-    private fun createParser(data: ByteArray): XmlPullParser {
-        val factory = XmlPullParserFactory.newInstance()
-        factory.isNamespaceAware = false
-        val parser = factory.newPullParser()
-        parser.setInput(data.inputStream(), "UTF-8")
-        return parser
-    }
-
-    /** ZIP 内容数据 */
-    private data class ZipData(
-        val sharedStrings: ByteArray?,
-        val sheetData: ByteArray?,
-    )
-
-    /** 解析结果 */
-    data class ParseResult(
-        val items: List<ImportedBillItem>,
-        val summary: BillSummary,
-    )
+    internal fun parseDateTime(dateStr: String): Long? = XlsxReader.parseDateTime(dateStr)
 }

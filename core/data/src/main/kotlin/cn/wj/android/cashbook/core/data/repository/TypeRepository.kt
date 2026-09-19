@@ -74,6 +74,14 @@ interface TypeRepository {
 
     suspend fun update(model: RecordTypeModel)
 
+    /**
+     * 插入新分类（自动生成主键），返回新分类 id
+     *
+     * 与 [update] 的区别：`update` 走 `insertOrReplace` 会带上模型 id（负数为内置分类），
+     * 新增分类必须使用自增正 id，避免与内置固定 id（-1、-2001…）冲突。
+     */
+    suspend fun insertType(model: RecordTypeModel): Long
+
     suspend fun generateSortById(id: Long, parentId: Long): Int
 
     /** 按 [sortedIds] 顺序为一级分类写入连续的 sort（0,1,2...） */

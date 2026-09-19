@@ -21,21 +21,26 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import cn.wj.android.cashbook.core.model.model.BillSource
 import cn.wj.android.cashbook.feature.record.imports.screen.RecordImportRoute
 
 /** 账单导入路由 */
-private const val ROUTE_RECORD_IMPORT = "record_import/{fileUri}"
+private const val ROUTE_RECORD_IMPORT = "record_import/{fileUri}/{source}"
 
 /** 路由参数 - 文件 URI */
 private const val KEY_FILE_URI = "fileUri"
+
+/** 路由参数 - 账单来源 */
+private const val KEY_SOURCE = "source"
 
 /**
  * 跳转到账单导入界面
  *
  * @param fileUri 选择的账单文件路径（需要 URL 编码）
+ * @param source 账单来源（微信 / 支付宝）
  */
-fun NavController.naviToRecordImport(fileUri: String) {
-    this.navigate("record_import/${java.net.URLEncoder.encode(fileUri, "UTF-8")}")
+fun NavController.naviToRecordImport(fileUri: String, source: BillSource = BillSource.WECHAT) {
+    this.navigate("record_import/${java.net.URLEncoder.encode(fileUri, "UTF-8")}/${source.name}")
 }
 
 /**
@@ -53,6 +58,10 @@ fun NavGraphBuilder.recordImportScreen(
         arguments = listOf(
             navArgument(KEY_FILE_URI) {
                 type = NavType.StringType
+            },
+            navArgument(KEY_SOURCE) {
+                type = NavType.StringType
+                defaultValue = BillSource.WECHAT.name
             },
         ),
     ) {

@@ -154,6 +154,10 @@
     <string name="import_bill">导入账单</string>
     <string name="import_from_wechat">从微信导入</string>
     <string name="import_from_wechat_hint">导入微信支付账单(.xlsx)</string>
+    <string name="import_from_alipay">从支付宝导入</string>
+    <string name="import_from_alipay_hint">导入支付宝账单(.xlsx)</string>
+    <string name="import_file_format_error_alipay">文件格式不支持，请选择支付宝导出的 xlsx 文件</string>
+    <string name="import_type_create_pending">新建</string>
     <string name="import_summary_total">共 %1$d 条记录</string>
     <string name="import_summary_income">收入 %1$d 笔 %2$s 元</string>
     <string name="import_summary_expenditure">支出 %1$d 笔 %2$s 元</string>

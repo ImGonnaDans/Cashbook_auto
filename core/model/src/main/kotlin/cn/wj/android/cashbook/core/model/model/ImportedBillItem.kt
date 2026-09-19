@@ -20,16 +20,17 @@ package cn.wj.android.cashbook.core.model.model
  * 导入的账单条目（格式无关的中间模型）
  *
  * @param transactionTime 交易时间戳
- * @param transactionType 原始交易类型（如"商户消费"）
+ * @param transactionType 原始交易类型（如"商户消费"；支付宝为交易分类）
  * @param counterparty 交易对方
  * @param description 商品/描述
- * @param direction 收入/支出方向
+ * @param direction 收入/支出方向（退款按收入方向处理）
  * @param amount 金额
  * @param paymentMethod 支付方式原始文本
  * @param status 当前状态
  * @param transactionId 交易单号（用于去重）
  * @param merchantId 商户单号
  * @param remark 备注
+ * @param isRefund 是否为退款交易（支付宝「收/支=退款」；导入时固定挂到内置「退款」分类）
  */
 data class ImportedBillItem(
     val transactionTime: Long,
@@ -43,6 +44,7 @@ data class ImportedBillItem(
     val transactionId: String,
     val merchantId: String,
     val remark: String,
+    val isRefund: Boolean = false,
 )
 
 /** 账单收支方向 */

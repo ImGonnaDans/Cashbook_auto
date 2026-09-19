@@ -18,8 +18,11 @@ package cn.wj.android.cashbook.core.design.component
 
 import android.annotation.SuppressLint
 import android.content.Context
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import cn.wj.android.cashbook.core.common.tools.funLogger
@@ -57,5 +60,12 @@ fun painterDrawableResource(idStr: String): Painter {
         funLogger("ResourcesKt").e(throwable, "painterDrawableResource(idStr = <$idStr>)")
         throw throwable
     }
-    return painterResource(id = resId)
+    return if (resId != 0) {
+        painterResource(id = resId)
+    } else {
+        // 兜底：资源名不存在（脏数据 / 图标资源被移除）时回退到默认图标，
+        // 避免 painterResource(id = 0) 抛异常导致记账页、我的分类等界面崩溃
+        funLogger("ResourcesKt").e("drawable resource not found: $idStr")
+        rememberVectorPainter(image = Icons.Filled.MoreHoriz)
+    }
 }

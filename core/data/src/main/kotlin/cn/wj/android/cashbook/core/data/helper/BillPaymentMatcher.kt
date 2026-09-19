@@ -52,6 +52,8 @@ object BillPaymentMatcher {
         "广发" to AssetClassificationEnum.BANK_CARD_GF,
         "浦发" to AssetClassificationEnum.BANK_CARD_PF,
         "兴业" to AssetClassificationEnum.BANK_CARD_XY,
+        // 支付宝账单常见：平安银行（含"平安银行信用购"），项目未细分平安银行图标，归入银行卡
+        "平安" to AssetClassificationEnum.BANK_CARD,
     )
 
     /** 特殊支付方式关键词 → classification 映射 */
@@ -61,6 +63,9 @@ object BillPaymentMatcher {
         "花呗" to AssetClassificationEnum.ANT_CREDIT_PAY,
         "支付宝" to AssetClassificationEnum.ALIPAY,
         "京东白条" to AssetClassificationEnum.JD_IOUS,
+        // 支付宝账单常见支付方式
+        "余额宝" to AssetClassificationEnum.ALIPAY,
+        "信用购" to AssetClassificationEnum.ANT_CREDIT_PAY,
     )
 
     /**
@@ -94,8 +99,13 @@ object BillPaymentMatcher {
             )
         }
 
+        // 组合支付场景（支付宝，如"平安银行信用购&红包"）：取 & 前的主支付方式参与匹配；
+        // 原始完整文本仍作为 originalName 回写（界面展示 + 预览映射键）
+        val normalized = paymentMethod.split("&").firstOrNull().orEmpty().trim()
+            .ifBlank { paymentMethod.trim() }
+
         // 策略1：精确匹配资产名称
-        assets.find { it.name == paymentMethod }?.let { asset ->
+        assets.find { it.name == normalized }?.let { asset ->
             return PaymentMethodMapping(
                 originalName = paymentMethod,
                 matchedAssetId = asset.id,
@@ -104,9 +114,9 @@ object BillPaymentMatcher {
         }
 
         // 策略2：银行关键词匹配（含卡号后四位）
-        val cardSuffix = extractCardSuffix(paymentMethod)
+        val cardSuffix = extractCardSuffix(normalized)
         for ((keyword, classification) in BANK_KEYWORD_MAP) {
-            if (paymentMethod.contains(keyword)) {
+            if (normalized.contains(keyword)) {
                 val matched = if (cardSuffix != null) {
                     // 优先匹配银行类型 + 卡号
                     assets.find {
@@ -127,7 +137,7 @@ object BillPaymentMatcher {
 
         // 策略3：特殊支付方式关键词匹配
         for ((keyword, classification) in SPECIAL_PAYMENT_MAP) {
-            if (paymentMethod.contains(keyword)) {
+            if (normalized.contains(keyword)) {
                 assets.find { it.classification == classification }?.let { asset ->
                     return PaymentMethodMapping(
                         originalName = paymentMethod,

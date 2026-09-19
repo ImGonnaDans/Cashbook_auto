@@ -50,6 +50,7 @@ import cn.wj.android.cashbook.core.design.component.CbTopAppBar
 import cn.wj.android.cashbook.core.design.component.Loading
 import cn.wj.android.cashbook.core.design.theme.rememberHapticOnClick
 import cn.wj.android.cashbook.core.model.model.BillDirection
+import cn.wj.android.cashbook.core.model.model.BillSource
 import cn.wj.android.cashbook.core.ui.R
 import cn.wj.android.cashbook.feature.record.imports.component.ImportPreviewList
 import cn.wj.android.cashbook.feature.record.imports.component.ImportSummarySection
@@ -76,6 +77,13 @@ internal fun RecordImportRoute(
 
     RecordImportScreen(
         uiState = uiState,
+        fileFormatErrorText = stringResource(
+            if (viewModel.source == BillSource.ALIPAY) {
+                R.string.import_file_format_error_alipay
+            } else {
+                R.string.import_file_format_error
+            },
+        ),
         onBookSelected = viewModel::selectBook,
         onMappingClick = { originalName -> selectedMappingName = originalName },
         onUpdatePaymentMapping = viewModel::updatePaymentMapping,
@@ -98,6 +106,7 @@ internal fun RecordImportRoute(
 @Composable
 internal fun RecordImportScreen(
     uiState: RecordImportUiState,
+    fileFormatErrorText: String,
     onBookSelected: (Long) -> Unit,
     onMappingClick: (String) -> Unit,
     onUpdatePaymentMapping: (String, Long, String) -> Unit,
@@ -115,7 +124,7 @@ internal fun RecordImportScreen(
     modifier: Modifier = Modifier,
 ) {
     // 处理导入完成和错误状态，使用 stringResource 以保持 locale 可观察
-    val importErrorMessage = stringResource(R.string.import_file_format_error)
+    val importErrorMessage = fileFormatErrorText
     val importDoneMessage = if (uiState is RecordImportUiState.Done) {
         stringResource(R.string.import_success, uiState.imported, uiState.skipped)
     } else {

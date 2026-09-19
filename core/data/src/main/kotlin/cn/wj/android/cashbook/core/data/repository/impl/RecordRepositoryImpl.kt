@@ -605,6 +605,13 @@ class RecordRepositoryImpl @Inject constructor(
         recordDao.queryByWechatTransactionId(booksId, transactionId).map { it.asModel() }
     }
 
+    override suspend fun queryByAlipayTransactionId(
+        booksId: Long,
+        transactionId: String,
+    ): List<RecordModel> = withContext(coroutineContext) {
+        recordDao.queryByAlipayTransactionId(booksId, transactionId).map { it.asModel() }
+    }
+
     override suspend fun queryByTimeAndAmount(
         booksId: Long,
         startTime: Long,

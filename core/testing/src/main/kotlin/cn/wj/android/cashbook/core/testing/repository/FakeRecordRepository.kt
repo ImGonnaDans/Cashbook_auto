@@ -511,6 +511,16 @@ class FakeRecordRepository : RecordRepository {
         return records.filter { it.booksId == booksId && it.remark.contains(marker) }
     }
 
+    override suspend fun queryByAlipayTransactionId(
+        booksId: Long,
+        transactionId: String,
+    ): List<RecordModel> {
+        // 与 DAO 的 remark LIKE '%[支付宝单号:<id>]%'（方括号定界、同 booksId）语义保持一致
+        if (transactionId.isBlank()) return emptyList()
+        val marker = "[支付宝单号:$transactionId]"
+        return records.filter { it.booksId == booksId && it.remark.contains(marker) }
+    }
+
     override suspend fun queryByTimeAndAmount(
         booksId: Long,
         startTime: Long,

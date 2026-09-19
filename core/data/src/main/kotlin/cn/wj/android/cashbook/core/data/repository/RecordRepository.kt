@@ -216,6 +216,11 @@ interface RecordRepository {
     suspend fun queryByWechatTransactionId(booksId: Long, transactionId: String): List<RecordModel>
 
     /**
+     * 查询指定账本中是否存在包含支付宝交易单号的记录
+     */
+    suspend fun queryByAlipayTransactionId(booksId: Long, transactionId: String): List<RecordModel>
+
+    /**
      * 查询指定账本中指定时间范围和金额的记录（用于模糊去重）
      */
     suspend fun queryByTimeAndAmount(

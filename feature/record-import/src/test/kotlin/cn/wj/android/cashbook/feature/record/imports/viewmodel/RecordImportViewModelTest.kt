@@ -18,6 +18,7 @@ package cn.wj.android.cashbook.feature.record.imports.viewmodel
 
 import androidx.lifecycle.SavedStateHandle
 import cn.wj.android.cashbook.core.model.model.BillDirection
+import cn.wj.android.cashbook.core.model.model.BillSource
 import cn.wj.android.cashbook.core.model.model.DuplicateStatus
 import cn.wj.android.cashbook.core.model.model.ImportedBillItem
 import cn.wj.android.cashbook.core.model.model.RecordModel
@@ -26,6 +27,7 @@ import cn.wj.android.cashbook.core.testing.repository.FakeBooksRepository
 import cn.wj.android.cashbook.core.testing.repository.FakeRecordRepository
 import cn.wj.android.cashbook.core.testing.repository.FakeTypeRepository
 import cn.wj.android.cashbook.core.testing.util.TestDispatcherRule
+import cn.wj.android.cashbook.domain.usecase.CreateImportTypeUseCase
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -41,13 +43,24 @@ class RecordImportViewModelTest {
     private fun createViewModel(
         filePath: String = "",
         recordRepository: FakeRecordRepository = FakeRecordRepository(),
+        typeRepository: FakeTypeRepository = FakeTypeRepository(),
+        source: BillSource = BillSource.WECHAT,
     ): RecordImportViewModel {
         return RecordImportViewModel(
-            savedStateHandle = SavedStateHandle(mapOf("fileUri" to filePath)),
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "fileUri" to filePath,
+                    "source" to source.name,
+                ),
+            ),
             recordRepository = recordRepository,
-            typeRepository = FakeTypeRepository(),
+            typeRepository = typeRepository,
             assetRepository = FakeAssetRepository(),
             booksRepository = FakeBooksRepository(),
+            createImportTypeUseCase = CreateImportTypeUseCase(
+                typeRepository = typeRepository,
+                coroutineContext = UnconfinedTestDispatcher(),
+            ),
             coroutineContext = UnconfinedTestDispatcher(),
         )
     }

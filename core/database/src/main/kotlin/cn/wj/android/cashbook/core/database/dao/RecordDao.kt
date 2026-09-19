@@ -538,6 +538,15 @@ interface RecordDao {
         """
     SELECT * FROM db_record
     WHERE books_id=:booksId
+    AND remark LIKE '%[支付宝单号:' || :transactionId || ']%'
+""",
+    )
+    suspend fun queryByAlipayTransactionId(booksId: Long, transactionId: String): List<RecordTable>
+
+    @Query(
+        """
+    SELECT * FROM db_record
+    WHERE books_id=:booksId
     AND record_time>=:startTime
     AND record_time<=:endTime
     AND amount=:amount

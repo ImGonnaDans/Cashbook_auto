@@ -487,7 +487,7 @@ fun CashbookNavHost(
         backupAndRecoveryScreen(
             onRequestPopBackStack = navController::popBackStackSafety,
             onShowSnackbar = onShowSnackbar,
-            onRequestNaviToRecordImport = { fileUri -> navController.naviToRecordImport(fileUri) },
+            onRequestNaviToRecordImport = { fileUri, source -> navController.naviToRecordImport(fileUri, source) },
         )
         // 账单导入
         recordImportScreen(

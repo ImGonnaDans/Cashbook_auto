@@ -510,6 +510,15 @@ class FakeRecordDao : RecordDao {
         }
     }
 
+    override suspend fun queryByAlipayTransactionId(
+        booksId: Long,
+        transactionId: String,
+    ): List<RecordTable> {
+        return records.filter {
+            it.booksId == booksId && it.remark.contains(transactionId)
+        }
+    }
+
     override suspend fun queryByTimeAndAmount(
         booksId: Long,
         startTime: Long,

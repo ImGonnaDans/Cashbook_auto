@@ -168,6 +168,22 @@ private fun ImportPreviewRow(
                             )
                         }
                     }
+
+                    // 待创建分类标记（支付宝账单分类未命中已有二级分类，确认导入时创建一级分类）
+                    if (item.pendingCreateTypeName != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.padding(start = 4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.import_type_create_pending),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
