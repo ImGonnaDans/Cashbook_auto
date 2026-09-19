@@ -68,6 +68,22 @@ class AnalyticsScreenScreenshotTests {
                 balance = -100_00L,
                 granularity = AnalyticsBarGranularity.DAY,
             ),
+            // 无数据日期：曲线应补齐为 0 而不是跳过
+            AnalyticsRecordBarEntity(
+                date = "2024-01-03",
+                expenditure = 0L,
+                income = 0L,
+                balance = 0L,
+                granularity = AnalyticsBarGranularity.DAY,
+            ),
+            // 支出为负表示实际产生收益
+            AnalyticsRecordBarEntity(
+                date = "2024-01-04",
+                expenditure = -80_00L,
+                income = 0L,
+                balance = 80_00L,
+                granularity = AnalyticsBarGranularity.DAY,
+            ),
         ),
         expenditurePieDataList = listOf(
             AnalyticsRecordPieEntity(

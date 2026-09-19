@@ -136,4 +136,25 @@ class LineChartScreenshotTests {
             )
         }
     }
+
+    @Test
+    fun cbLineChart_denseDayLabels_multipleThemes() {
+        composeTestRule.captureMultiTheme(
+            name = "LineChart",
+            overrideFileName = "LineChart_denseDayLabels",
+        ) {
+            CbLineChart(
+                dataSets = listOf(
+                    LineDataSet(
+                        label = "支出",
+                        entries = (1..31).map { day ->
+                            LineEntry(x = day.toFloat(), y = (day % 7) * 40f, label = "$day")
+                        },
+                        color = Color(0xFFE57373),
+                    ),
+                ),
+                modifier = chartModifier,
+            )
+        }
+    }
 }

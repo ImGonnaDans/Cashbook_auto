@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.wj.android.cashbook.core.design.theme.LocalMotion
 import cn.wj.android.cashbook.core.design.theme.rememberReducedMotion
@@ -71,6 +72,7 @@ data class LineEntry(
  * @param dataSets 数据集列表（支持多条折线）
  * @param modifier Modifier
  * @param showZeroLine 是否显示 0 值参考线（虚线）
+ * @param xLabels 横轴标签（仅取 x 与 label）。为空时取第一条数据集的坐标点作标签
  * @param formatYValue Y 轴标签格式化函数
  */
 @Composable
@@ -78,6 +80,7 @@ fun CbLineChart(
     dataSets: List<LineDataSet>,
     modifier: Modifier = Modifier,
     showZeroLine: Boolean = false,
+    xLabels: List<LineEntry> = emptyList(),
     formatYValue: (Float) -> String = { formatLargeValue(it) },
 ) {
     val motion = LocalMotion.current
@@ -119,6 +122,13 @@ fun CbLineChart(
     // 预排序数据集，避免在 Canvas DrawScope 内每帧排序
     val sortedDataSets = remember(dataSets) {
         dataSets.map { it.copy(entries = it.entries.sortedBy { e -> e.x }) }
+    }
+
+    // 预先确定横轴标签，避免在 Canvas DrawScope 内每帧过滤
+    val axisLabels = remember(dataSets, xLabels) {
+        (xLabels.ifEmpty { dataSets.firstOrNull()?.entries.orEmpty() })
+            .filter { it.label.isNotEmpty() }
+            .sortedBy { it.x }
     }
 
     Canvas(modifier = modifier.fillMaxSize()) {
@@ -182,22 +192,24 @@ fun CbLineChart(
             )
         }
 
-        // 绘制 X 轴标签
-        val xLabels = sortedDataSets.first().entries
-        val maxLabels = (plotWidth / 60f).toInt().coerceAtLeast(2)
-        val step = (xLabels.size / maxLabels).coerceAtLeast(1)
-        for (i in xLabels.indices step step) {
-            val entry = xLabels[i]
-            if (entry.label.isNotEmpty()) {
-                val screenX = toScreenX(entry.x)
-                drawXLabel(
-                    text = entry.label,
-                    x = screenX,
-                    y = size.height - 8f,
-                    color = onSurfaceColor,
-                    paint = xLabelPaint,
-                )
-            }
+        // 绘制 X 轴标签：按标签实测宽度避让，避免字符重叠
+        xLabelPaint.textSize = 9.sp.toPx()
+        val axisLabelCenters = axisLabels.map { toScreenX(it.x) }
+        val visibleLabelIndices = selectVisibleXLabelIndices(
+            centers = axisLabelCenters,
+            halfWidths = axisLabels.map { xLabelPaint.measureText(it.label) / 2f },
+            minGap = 8.dp.toPx(),
+            leftBound = leftPadding,
+            rightBound = size.width - rightPadding,
+        )
+        visibleLabelIndices.forEach { index ->
+            drawXLabel(
+                text = axisLabels[index].label,
+                x = axisLabelCenters[index],
+                y = size.height - 8f,
+                color = onSurfaceColor,
+                paint = xLabelPaint,
+            )
         }
 
         // 绘制 0 参考线（虚线）

@@ -62,7 +62,6 @@ import cn.wj.android.cashbook.core.design.component.CbTab
 import cn.wj.android.cashbook.core.design.component.CbTabRow
 import cn.wj.android.cashbook.core.design.component.CbTopAppBar
 import cn.wj.android.cashbook.core.design.component.Footer
-import cn.wj.android.cashbook.core.design.component.LineEntry
 import cn.wj.android.cashbook.core.design.component.Loading
 import cn.wj.android.cashbook.core.design.icon.CbIcons
 import cn.wj.android.cashbook.core.design.theme.LocalExtendedColors
@@ -79,6 +78,7 @@ import cn.wj.android.cashbook.core.ui.expand.percentText
 import cn.wj.android.cashbook.core.ui.expand.text
 import cn.wj.android.cashbook.feature.records.view.AnalyticsPieChart
 import cn.wj.android.cashbook.feature.records.view.AnalyticsPieListItem
+import cn.wj.android.cashbook.feature.records.view.buildAnalyticsChartSeries
 import cn.wj.android.cashbook.feature.records.viewmodel.AnalyticsUiState
 import cn.wj.android.cashbook.feature.records.viewmodel.AnalyticsViewModel
 import cn.wj.android.cashbook.feature.records.viewmodel.ShowSheetData
@@ -584,50 +584,14 @@ private fun AnalyticsBarChart(
         val balanceText = AnalyticsBarTypeEnum.BALANCE.text
         val dataList = uiState.barDataList
 
-        // 构建折线图数据
-        val chartDataSets = remember(dataList, selectedTab) {
-            val expenditureLs = mutableListOf<LineEntry>()
-            val incomeLs = mutableListOf<LineEntry>()
-            val balanceLs = mutableListOf<LineEntry>()
-            dataList.forEachIndexed { index, entity ->
-                val xLabel = when (entity.granularity) {
-                    AnalyticsBarGranularity.YEAR -> entity.date
-                    AnalyticsBarGranularity.MONTH -> entity.date.split("-").last()
-                    AnalyticsBarGranularity.DAY -> entity.date.split("-").run {
-                        "${this[1]}-${this[2]}"
-                    }
-                }
-                val expenditure = entity.expenditure / 100f
-                if (expenditure > 0f) {
-                    expenditureLs.add(
-                        LineEntry(
-                            x = (index + 1).toFloat(),
-                            y = expenditure * -1f,
-                            label = xLabel,
-                        ),
-                    )
-                }
-                val income = entity.income / 100f
-                if (income > 0f) {
-                    incomeLs.add(
-                        LineEntry(
-                            x = (index + 1).toFloat(),
-                            y = income,
-                            label = xLabel,
-                        ),
-                    )
-                }
-                val balance = entity.balance / 100f
-                if (balance > 0f) {
-                    balanceLs.add(
-                        LineEntry(
-                            x = (index + 1).toFloat(),
-                            y = balance,
-                            label = xLabel,
-                        ),
-                    )
-                }
-            }
+        // 构建折线图数据：无数据的日期填充为 0，支出取正数显示
+        val chartSeries = remember(dataList) {
+            buildAnalyticsChartSeries(dataList)
+        }
+        val chartDataSets = remember(chartSeries, selectedTab) {
+            val expenditureLs = chartSeries.expenditureEntries
+            val incomeLs = chartSeries.incomeEntries
+            val balanceLs = chartSeries.balanceEntries
 
             val result = mutableListOf<cn.wj.android.cashbook.core.design.component.LineDataSet>()
             when (selectedTab) {
@@ -706,6 +670,7 @@ private fun AnalyticsBarChart(
         CbLineChart(
             dataSets = chartDataSets,
             showZeroLine = showZeroLine,
+            xLabels = chartSeries.axisEntries,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp)
