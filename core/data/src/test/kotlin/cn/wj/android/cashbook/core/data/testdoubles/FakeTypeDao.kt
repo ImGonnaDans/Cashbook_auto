@@ -168,6 +168,25 @@ class FakeTypeDao : TypeDao {
         typesFlow.value = mutable
     }
 
+    override suspend fun countOrphanSecondTypes(secondLevel: Int): Int {
+        return typesFlow.value.count { it.parentId == -1L && it.typeLevel == secondLevel }
+    }
+
+    override suspend fun healOrphanSecondTypes(firstLevel: Int, secondLevel: Int): Int {
+        val mutable = typesFlow.value.toMutableList()
+        var healed = 0
+        mutable.forEachIndexed { index, table ->
+            if (table.parentId == -1L && table.typeLevel == secondLevel) {
+                mutable[index] = table.copy(typeLevel = firstLevel)
+                healed++
+            }
+        }
+        if (healed > 0) {
+            typesFlow.value = mutable
+        }
+        return healed
+    }
+
     override suspend fun countRecordsByTypeId(typeId: Long): Int {
         return records.count { it.typeId == typeId }
     }

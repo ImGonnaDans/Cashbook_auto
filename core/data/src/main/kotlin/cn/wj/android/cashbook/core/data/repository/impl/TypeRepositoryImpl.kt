@@ -21,6 +21,7 @@ import cn.wj.android.cashbook.core.common.FIXED_TYPE_ID_REFUND
 import cn.wj.android.cashbook.core.common.FIXED_TYPE_ID_REIMBURSE
 import cn.wj.android.cashbook.core.common.annotation.CashbookDispatchers
 import cn.wj.android.cashbook.core.common.annotation.Dispatcher
+import cn.wj.android.cashbook.core.common.ext.logger
 import cn.wj.android.cashbook.core.common.model.typeDataVersion
 import cn.wj.android.cashbook.core.common.model.updateVersion
 import cn.wj.android.cashbook.core.data.repository.TypeRepository
@@ -217,6 +218,28 @@ class TypeRepositoryImpl @Inject constructor(
         withContext(coroutineContext) {
             FIXED_TYPE_ID_CREDIT_CARD_PAYMENT == typeId
         }
+
+    /**
+     * 自愈历史脏数据：孤儿二级分类（`parent_id=-1` 且 `type_level=二级`）提升为一级。
+     *
+     * 幂等；无脏数据时仅一次 COUNT 查询、不产生写事务（避免每次启动无谓占用写锁），返回修复行数。
+     */
+    override suspend fun healOrphanSecondLevelTypes(): Int = withContext(coroutineContext) {
+        val secondLevel = TypeLevelEnum.SECOND.ordinal
+        val orphanCount = typeDao.countOrphanSecondTypes(secondLevel)
+        if (orphanCount <= 0) return@withContext 0
+        val healed = typeDao.healOrphanSecondTypes(
+            firstLevel = TypeLevelEnum.FIRST.ordinal,
+            secondLevel = secondLevel,
+        )
+        if (healed > 0) {
+            typeDataVersion.updateVersion()
+            this@TypeRepositoryImpl.logger().i(
+                "healOrphanSecondLevelTypes(), orphanCount = <$orphanCount>, healed = <$healed>",
+            )
+        }
+        healed
+    }
 
     /**
      * 应用层一次性迁移：将旧的特殊类型记录引用迁移到固定 ID

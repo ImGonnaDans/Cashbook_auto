@@ -271,6 +271,98 @@ class TypeRepositoryImplTest {
         assertThat(result).isNull()
     }
 
+    // ========== 孤儿二级分类自愈测试（parent_id=-1 且 typeLevel=二级 的历史脏数据） ==========
+
+    @Test
+    fun when_countOrphanSecondTypes_then_only_counts_dirty_rows() = runTest {
+        // 脏数据：编辑二级分类丢失父 id 后 parent_id 为 -1，但 typeLevel 仍为二级
+        typeDao.insertType(
+            createTypeTable(name = "脏二级", typeLevel = TypeLevelEnum.SECOND.ordinal, parentId = -1L),
+        )
+        // 合法二级（父分类存在）与合法一级均不应计入
+        val parentId = typeDao.insertType(
+            createTypeTable(name = "餐饮", typeLevel = TypeLevelEnum.FIRST.ordinal),
+        )
+        typeDao.insertType(
+            createTypeTable(name = "午餐", typeLevel = TypeLevelEnum.SECOND.ordinal, parentId = parentId),
+        )
+        typeDao.insertType(createTypeTable(name = "交通", typeLevel = TypeLevelEnum.FIRST.ordinal))
+
+        assertThat(typeDao.countOrphanSecondTypes(TypeLevelEnum.SECOND.ordinal)).isEqualTo(1)
+    }
+
+    @Test
+    fun when_countOrphanSecondTypes_on_clean_db_then_returns_zero() = runTest {
+        val parentId = typeDao.insertType(
+            createTypeTable(name = "餐饮", typeLevel = TypeLevelEnum.FIRST.ordinal),
+        )
+        typeDao.insertType(
+            createTypeTable(name = "午餐", typeLevel = TypeLevelEnum.SECOND.ordinal, parentId = parentId),
+        )
+
+        assertThat(typeDao.countOrphanSecondTypes(TypeLevelEnum.SECOND.ordinal)).isEqualTo(0)
+    }
+
+    @Test
+    fun when_healOrphanSecondTypes_then_only_dirty_row_promoted_to_first_level() = runTest {
+        val dirtyId = typeDao.insertType(
+            createTypeTable(
+                name = "早餐",
+                iconName = "vector_breakfast",
+                typeLevel = TypeLevelEnum.SECOND.ordinal,
+                typeCategory = RecordTypeCategoryEnum.INCOME.ordinal,
+                parentId = -1L,
+                sort = 7000,
+            ),
+        )
+        val parentId = typeDao.insertType(
+            createTypeTable(name = "餐饮", typeLevel = TypeLevelEnum.FIRST.ordinal),
+        )
+        val secondId = typeDao.insertType(
+            createTypeTable(name = "午餐", typeLevel = TypeLevelEnum.SECOND.ordinal, parentId = parentId),
+        )
+
+        val healed = typeDao.healOrphanSecondTypes(
+            firstLevel = TypeLevelEnum.FIRST.ordinal,
+            secondLevel = TypeLevelEnum.SECOND.ordinal,
+        )
+
+        assertThat(healed).isEqualTo(1)
+        val dirty = typeDao.queryById(dirtyId)!!
+        assertThat(dirty.typeLevel).isEqualTo(TypeLevelEnum.FIRST.ordinal)
+        // 除 type_level 外字段逐字不变：parent_id 已是 -1 则保持，sort 保持原值
+        assertThat(dirty.parentId).isEqualTo(-1L)
+        assertThat(dirty.name).isEqualTo("早餐")
+        assertThat(dirty.iconName).isEqualTo("vector_breakfast")
+        assertThat(dirty.typeCategory).isEqualTo(RecordTypeCategoryEnum.INCOME.ordinal)
+        assertThat(dirty.sort).isEqualTo(7000)
+        // 合法二级未被误伤
+        val second = typeDao.queryById(secondId)!!
+        assertThat(second.typeLevel).isEqualTo(TypeLevelEnum.SECOND.ordinal)
+        assertThat(second.parentId).isEqualTo(parentId)
+    }
+
+    @Test
+    fun when_healOrphanSecondTypes_twice_then_second_time_returns_zero() = runTest {
+        typeDao.insertType(
+            createTypeTable(name = "脏二级", typeLevel = TypeLevelEnum.SECOND.ordinal, parentId = -1L),
+        )
+
+        val first = typeDao.healOrphanSecondTypes(
+            firstLevel = TypeLevelEnum.FIRST.ordinal,
+            secondLevel = TypeLevelEnum.SECOND.ordinal,
+        )
+        val second = typeDao.healOrphanSecondTypes(
+            firstLevel = TypeLevelEnum.FIRST.ordinal,
+            secondLevel = TypeLevelEnum.SECOND.ordinal,
+        )
+
+        // 幂等：第二次无脏数据可修，返回 0
+        assertThat(first).isEqualTo(1)
+        assertThat(second).isEqualTo(0)
+        assertThat(typeDao.countOrphanSecondTypes(TypeLevelEnum.SECOND.ordinal)).isEqualTo(0)
+    }
+
     // ========== 计数查询测试 ==========
 
     @Test

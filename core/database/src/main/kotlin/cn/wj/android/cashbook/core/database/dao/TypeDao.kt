@@ -101,6 +101,14 @@ interface TypeDao {
     @Query("UPDATE db_type SET parent_id = -1, type_level = 0 WHERE parent_id = :parentId")
     suspend fun promoteChildTypes(parentId: Long)
 
+    /** 统计孤儿二级分类数：parent_id 已为 -1 但 type_level 仍为 [secondLevel]（历史 bug 编辑二级分类丢失父 id 的脏数据） */
+    @Query("SELECT COUNT(*) FROM db_type WHERE parent_id = -1 AND type_level = :secondLevel")
+    suspend fun countOrphanSecondTypes(secondLevel: Int): Int
+
+    /** 将孤儿二级分类提升为一级：parent_id 已为 -1，仅把 type_level 由 [secondLevel] 改为 [firstLevel]，返回受影响行数；幂等 */
+    @Query("UPDATE db_type SET type_level = :firstLevel WHERE parent_id = -1 AND type_level = :secondLevel")
+    suspend fun healOrphanSecondTypes(firstLevel: Int, secondLevel: Int): Int
+
     @Query("SELECT COUNT(*) FROM db_record WHERE type_id = :typeId")
     suspend fun countRecordsByTypeId(typeId: Long): Int
 }

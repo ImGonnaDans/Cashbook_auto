@@ -814,4 +814,123 @@ class TypeDaoTest {
         assertThat(typeDao.countRecordsByTypeId(typeId2)).isEqualTo(1)
         assertThat(typeDao.countRecordsByTypeId(999L)).isEqualTo(0)
     }
+
+    @Test
+    fun when_countOrphanSecondTypes_then_only_counts_parentMinusOneSecondLevelRows() = runTest {
+        // 脏数据：历史 bug 编辑二级分类后 parent_id 被写为 -1，但 type_level 仍为二级
+        typeDao.insertType(
+            TypeTable(
+                id = null,
+                parentId = -1L,
+                name = "脏二级",
+                iconName = "icon",
+                typeLevel = 1,
+                typeCategory = 0,
+                protected = SWITCH_INT_OFF,
+                sort = 0,
+            ),
+        )
+
+        // 合法二级（父分类存在）
+        val parentId = typeDao.insertType(
+            TypeTable(
+                id = null,
+                parentId = -1L,
+                name = "父类型",
+                iconName = "icon",
+                typeLevel = 0,
+                typeCategory = 0,
+                protected = SWITCH_INT_OFF,
+                sort = 1,
+            ),
+        )
+        typeDao.insertType(
+            TypeTable(
+                id = null,
+                parentId = parentId,
+                name = "合法二级",
+                iconName = "icon",
+                typeLevel = 1,
+                typeCategory = 0,
+                protected = SWITCH_INT_OFF,
+                sort = 0,
+            ),
+        )
+
+        // 合法一级
+        typeDao.insertType(
+            TypeTable(
+                id = null,
+                parentId = -1L,
+                name = "合法一级",
+                iconName = "icon",
+                typeLevel = 0,
+                typeCategory = 0,
+                protected = SWITCH_INT_OFF,
+                sort = 2,
+            ),
+        )
+
+        assertThat(typeDao.countOrphanSecondTypes(secondLevel = 1)).isEqualTo(1)
+    }
+
+    @Test
+    fun when_healOrphanSecondTypes_then_only_dirtyRowsBecomeFirstLevel() = runTest {
+        val dirtyId = typeDao.insertType(
+            TypeTable(
+                id = null,
+                parentId = -1L,
+                name = "脏二级",
+                iconName = "icon",
+                typeLevel = 1,
+                typeCategory = 1,
+                protected = SWITCH_INT_OFF,
+                sort = 7000,
+            ),
+        )
+        val parentId = typeDao.insertType(
+            TypeTable(
+                id = null,
+                parentId = -1L,
+                name = "父类型",
+                iconName = "icon",
+                typeLevel = 0,
+                typeCategory = 0,
+                protected = SWITCH_INT_OFF,
+                sort = 1,
+            ),
+        )
+        val secondId = typeDao.insertType(
+            TypeTable(
+                id = null,
+                parentId = parentId,
+                name = "合法二级",
+                iconName = "icon",
+                typeLevel = 1,
+                typeCategory = 0,
+                protected = SWITCH_INT_OFF,
+                sort = 0,
+            ),
+        )
+
+        val healed = typeDao.healOrphanSecondTypes(firstLevel = 0, secondLevel = 1)
+
+        assertThat(healed).isEqualTo(1)
+        val dirty = typeDao.queryById(dirtyId)
+        assertThat(dirty).isNotNull()
+        assertThat(dirty!!.typeLevel).isEqualTo(0)
+        // 除 type_level 外字段不变：parent_id 已是 -1、sort 保持原值
+        assertThat(dirty.parentId).isEqualTo(-1L)
+        assertThat(dirty.sort).isEqualTo(7000)
+        assertThat(dirty.typeCategory).isEqualTo(1)
+
+        // 合法二级不受影响
+        val second = typeDao.queryById(secondId)
+        assertThat(second).isNotNull()
+        assertThat(second!!.typeLevel).isEqualTo(1)
+        assertThat(second.parentId).isEqualTo(parentId)
+
+        // 幂等：再次调用无行可修
+        assertThat(typeDao.healOrphanSecondTypes(firstLevel = 0, secondLevel = 1)).isEqualTo(0)
+    }
 }

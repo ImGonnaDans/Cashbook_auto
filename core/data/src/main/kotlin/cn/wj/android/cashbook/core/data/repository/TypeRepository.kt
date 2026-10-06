@@ -90,6 +90,18 @@ interface TypeRepository {
     suspend fun isCreditPaymentType(typeId: Long): Boolean
 
     suspend fun migrateSpecialTypes()
+
+    /**
+     * 自愈历史脏数据：把「`parentId == -1` 但 `typeLevel == [TypeLevelEnum.SECOND]`」的孤儿二级分类提升为一级分类。
+     *
+     * 不变量：`parentId == -1 ⟺ typeLevel == FIRST`。旧版本编辑二级分类时把 `parentId` 覆盖为 -1，
+     * 使该分类既不出现在一级列表、也不在其父分类下（用户可见为「分类消失」），但仍占用名称（重建同名会撞重名校验）。
+     * 因父 id 已彻底丢失、`sort` 反推父分类不可靠，此处仅纠正 `typeLevel`（`parentId` 已为 -1），
+     * 其余字段（含 `sort`）保持原值，记录引用（`db_record.type_id`）不受影响；用户可再手动改回某一级的二级分类。
+     *
+     * 幂等：无脏数据时不写库并返回 0；有脏数据时返回修复行数。启动维护每次兜底（从旧备份恢复会重新引入脏数据）。
+     */
+    suspend fun healOrphanSecondLevelTypes(): Int
 }
 
 internal fun TypeTable.asModel(needRelated: Boolean): RecordTypeModel {

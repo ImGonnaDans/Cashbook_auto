@@ -154,6 +154,34 @@ class FakeTypeRepository : TypeRepository {
         return typeId == FIXED_TYPE_ID_CREDIT_CARD_PAYMENT
     }
 
+    /** [healOrphanSecondLevelTypes] 累计调用次数，供启动维护编排测试断言 */
+    var healOrphanSecondLevelTypesCount: Int = 0
+        private set
+
+    /** 非空时 [healOrphanSecondLevelTypes] 抛出该异常（启动维护失败隔离测试） */
+    var healThrowable: Throwable? = null
+
+    /** [healOrphanSecondLevelTypes] 调用时钩子，用于断言自愈与首屏 gate 的先后顺序 */
+    var onHealOrphanSecondLevelTypes: (() -> Unit)? = null
+
+    /** 与真 SQL 语义一致：`parentId == -1 && typeLevel == SECOND` 的孤儿行提升为一级，返回修复行数 */
+    override suspend fun healOrphanSecondLevelTypes(): Int {
+        healOrphanSecondLevelTypesCount++
+        onHealOrphanSecondLevelTypes?.invoke()
+        healThrowable?.let { throw it }
+        var healed = 0
+        types.forEachIndexed { index, type ->
+            if (type.parentId == -1L && type.typeLevel == TypeLevelEnum.SECOND) {
+                types[index] = type.copy(typeLevel = TypeLevelEnum.FIRST)
+                healed++
+            }
+        }
+        if (healed > 0) {
+            updateFlows()
+        }
+        return healed
+    }
+
     override suspend fun migrateSpecialTypes() {
         // 测试中不需要实际迁移
     }
