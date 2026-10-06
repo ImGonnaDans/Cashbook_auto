@@ -221,10 +221,15 @@ class MyCategoriesViewModel @Inject constructor(
 
     fun requestEditType(id: Long, parentId: Long) {
         viewModelScope.launch {
+            val type = typeRepository.getRecordTypeById(id)
+            // 编辑已有二级分类时以库中数据解析父分类，避免调用方漏传 parentId 导致层级信息丢失
+            val resolvedParentId = type?.takeIf { it.typeLevel == TypeLevelEnum.SECOND }
+                ?.parentId
+                ?: parentId
             dialogState = DialogState.Shown(
                 MyCategoriesDialogData.EditType(
-                    type = typeRepository.getRecordTypeById(id),
-                    parentType = typeRepository.getRecordTypeById(parentId),
+                    type = type,
+                    parentType = typeRepository.getRecordTypeById(resolvedParentId),
                 ),
             )
         }
@@ -241,9 +246,9 @@ class MyCategoriesViewModel @Inject constructor(
                 // 类型名称不能相同
                 shouldDisplayBookmark = MyCategoriesBookmarkEnum.DUPLICATE_TYPE_NAME
             } else {
-                // 更新类型数据
-                val model = (
-                    recordTypeById ?: RecordTypeModel(
+                // 新建时层级由父分类推导；编辑时层级字段以库中数据为准，避免被调用方传入的 parentId 改写
+                val model = if (null == recordTypeById) {
+                    RecordTypeModel(
                         id = id,
                         parentId = parentId,
                         name = name,
@@ -254,12 +259,12 @@ class MyCategoriesViewModel @Inject constructor(
                         sort = typeRepository.generateSortById(id, parentId),
                         needRelated = false,
                     )
-                    ).copy(
-                    id = id,
-                    parentId = parentId,
-                    name = name,
-                    iconName = iconName,
-                )
+                } else {
+                    recordTypeById.copy(
+                        name = name,
+                        iconName = iconName,
+                    )
+                }
                 typeRepository.update(model)
             }
             dismissDialog()

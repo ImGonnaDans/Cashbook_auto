@@ -467,6 +467,61 @@ class MyCategoriesViewModelTest {
     }
 
     @Test
+    fun when_edit_second_type_without_parent_then_parent_type_resolved_from_db() = runTest {
+        typeRepository.addType(createRecordTypeModel(id = 1L, name = "餐饮"))
+        typeRepository.addType(
+            createRecordTypeModel(
+                id = 10L,
+                parentId = 1L,
+                name = "午餐",
+                typeLevel = TypeLevelEnum.SECOND,
+            ),
+        )
+
+        // 路由层历史上固定传 parentId = -1L，断言 ViewModel 能自行解析出真实父分类
+        viewModel.requestEditType(id = 10L, parentId = -1L)
+
+        val data = (viewModel.dialogState as DialogState.Shown<*>).data
+        assertThat(data).isInstanceOf(MyCategoriesDialogData.EditType::class.java)
+        val editData = data as MyCategoriesDialogData.EditType
+        assertThat(editData.type).isNotNull()
+        assertThat(editData.type!!.id).isEqualTo(10L)
+        assertThat(editData.parentType).isNotNull()
+        assertThat(editData.parentType!!.id).isEqualTo(1L)
+    }
+
+    @Test
+    fun when_save_existing_second_type_then_parent_and_level_kept() = runTest {
+        typeRepository.addType(createRecordTypeModel(id = 1L, name = "餐饮"))
+        typeRepository.addType(
+            createRecordTypeModel(
+                id = 10L,
+                parentId = 1L,
+                name = "午餐",
+                typeLevel = TypeLevelEnum.SECOND,
+                sort = 3,
+            ),
+        )
+
+        val collectJob = launch(UnconfinedTestDispatcher()) {
+            viewModel.uiState.collect()
+        }
+
+        // 回归：即使调用方传 parentId = -1L，也不得把二级分类改成「孤儿」（原实现会致其从列表消失）
+        viewModel.saveRecordType(id = 10L, parentId = -1L, name = "午饭", iconName = "new_icon")
+
+        val saved = typeRepository.getRecordTypeById(10L)
+        assertThat(saved).isNotNull()
+        assertThat(saved!!.name).isEqualTo("午饭")
+        assertThat(saved.iconName).isEqualTo("new_icon")
+        assertThat(saved.parentId).isEqualTo(1L)
+        assertThat(saved.typeLevel).isEqualTo(TypeLevelEnum.SECOND)
+        assertThat(saved.sort).isEqualTo(3)
+
+        collectJob.cancel()
+    }
+
+    @Test
     fun when_save_new_record_type_then_type_created() = runTest {
         val collectJob = launch(UnconfinedTestDispatcher()) {
             viewModel.uiState.collect()
