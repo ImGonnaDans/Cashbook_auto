@@ -101,6 +101,10 @@ RELEASE.md
 # 输出路径
 /outputs
 
+# 本地「生成签名 APK」产物目录（Android Studio：app/<Flavor>/<BuildType>/；apk 已由 *.apk 忽略，另含 output-metadata.json）
+/app/*/release/
+/app/*/debug/
+
 # Superpowers brainstorm 临时文件
 .superpowers/
 
