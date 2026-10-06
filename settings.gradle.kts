@@ -25,6 +25,9 @@ pluginManagement {
         }
     }
 }
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
 
 dependencyResolutionManagement {
     // 配置只能在当前文件配置三方依赖仓库，否则编译异常退出
