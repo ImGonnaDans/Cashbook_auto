@@ -16,9 +16,13 @@
 
 package cn.wj.android.cashbook.domain.usecase
 
+import cn.wj.android.cashbook.core.model.enums.RecordTypeCategoryEnum
+import cn.wj.android.cashbook.core.model.enums.TypeLevelEnum
+import cn.wj.android.cashbook.core.model.model.RecordTypeModel
 import cn.wj.android.cashbook.core.model.model.TempKeysModel
 import cn.wj.android.cashbook.core.testing.repository.FakeRecordRepository
 import cn.wj.android.cashbook.core.testing.repository.FakeSettingRepository
+import cn.wj.android.cashbook.core.testing.repository.FakeTypeRepository
 import cn.wj.android.cashbook.core.testing.util.TestDispatcherRule
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
@@ -39,13 +43,15 @@ class RunStartupMaintenanceUseCaseTest {
 
     private lateinit var recordRepository: FakeRecordRepository
     private lateinit var settingRepository: FakeSettingRepository
+    private lateinit var typeRepository: FakeTypeRepository
     private lateinit var useCase: RunStartupMaintenanceUseCase
 
     @Before
     fun setup() {
         recordRepository = FakeRecordRepository()
         settingRepository = FakeSettingRepository()
-        useCase = RunStartupMaintenanceUseCase(recordRepository, settingRepository)
+        typeRepository = FakeTypeRepository()
+        useCase = RunStartupMaintenanceUseCase(recordRepository, settingRepository, typeRepository)
     }
 
     @Test
@@ -62,6 +68,8 @@ class RunStartupMaintenanceUseCaseTest {
         assertThat(ready).isTrue()
         assertThat(recordRepository.recalculateAllFinalAmountCount).isEqualTo(0)
         assertThat(recordRepository.backfillImagesToFilesCount).isEqualTo(0)
+        // 类型不变量自愈每次启动都跑（与 tempKeys 标志无关）
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1)
         // orphanScan 每分支兜底
         assertThat(recordRepository.cleanupOrphanImageFilesCount).isEqualTo(1)
     }
@@ -88,6 +96,7 @@ class RunStartupMaintenanceUseCaseTest {
         // compact gate：本次快照 imagesToFilesMigrated=false → 不跑 compact（顺延下次启动）
         assertThat(recordRepository.compactDatabaseIfNeededCount).isEqualTo(0)
         assertThat(recordRepository.cleanupOrphanImageFilesCount).isEqualTo(1)
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1)
     }
 
     @Test
@@ -108,6 +117,7 @@ class RunStartupMaintenanceUseCaseTest {
         assertThat(recordRepository.backfillImagesToFilesCount).isEqualTo(0)
         assertThat(recordRepository.compactDatabaseIfNeededCount).isEqualTo(1)
         assertThat(recordRepository.cleanupOrphanImageFilesCount).isEqualTo(1)
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1)
     }
 
     @Test
@@ -128,6 +138,7 @@ class RunStartupMaintenanceUseCaseTest {
         assertThat(recordRepository.backfillImagesToFilesCount).isEqualTo(0)
         assertThat(recordRepository.compactDatabaseIfNeededCount).isEqualTo(0)
         assertThat(recordRepository.cleanupOrphanImageFilesCount).isEqualTo(1)
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1)
     }
 
     @Test
@@ -150,6 +161,7 @@ class RunStartupMaintenanceUseCaseTest {
         assertThat(recordRepository.recalculateAllFinalAmountCount).isEqualTo(1)
         assertThat(recordRepository.backfillImagesToFilesCount).isEqualTo(1)
         assertThat(recordRepository.cleanupOrphanImageFilesCount).isEqualTo(1)
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1)
     }
 
     @Test
@@ -172,6 +184,8 @@ class RunStartupMaintenanceUseCaseTest {
         }
         // 取消逃逸中断编排，后续 orphanScan 未到达
         assertThat(recordRepository.cleanupOrphanImageFilesCount).isEqualTo(0)
+        // 自愈在 netRecalc 之前已完成（不受后续步骤取消影响）
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1)
     }
 
     @Test
@@ -191,5 +205,68 @@ class RunStartupMaintenanceUseCaseTest {
         }
         assertThat(ready).isFalse() // 迁移失败不放行首屏 gate
         assertThat(recordRepository.cleanupOrphanImageFilesCount).isEqualTo(0) // 逃逸中断编排，orphanScan 未到达
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1) // 自愈先于迁移步骤
+    }
+
+    @Test
+    fun type_orphan_heal_runs_before_first_screen_gate() = runTest {
+        // 自愈必须先于 onFirstScreenReady：首屏不得读到「parent_id=-1 但二级」的脏分类
+        settingRepository.setTempKeys(
+            TempKeysModel(db9To10DataMigrated = true, preferenceSplit = true),
+        )
+        var ready = false
+        var readyWhenHealCalled: Boolean? = null
+        typeRepository.onHealOrphanSecondLevelTypes = { readyWhenHealCalled = ready }
+
+        useCase { ready = true }
+
+        assertThat(readyWhenHealCalled).isNotNull()
+        assertThat(readyWhenHealCalled).isFalse()
+        assertThat(ready).isTrue()
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1)
+    }
+
+    @Test
+    fun type_orphan_heal_promotes_dirty_type_to_first_level() = runTest {
+        // 端到端（Fake 内存库）：脏二级分类被提升为一级，parent_id 保持 -1
+        settingRepository.setTempKeys(
+            TempKeysModel(db9To10DataMigrated = true, preferenceSplit = true),
+        )
+        typeRepository.addType(
+            RecordTypeModel(
+                id = 100L,
+                parentId = -1L,
+                name = "早餐",
+                iconName = "icon_breakfast",
+                typeLevel = TypeLevelEnum.SECOND,
+                typeCategory = RecordTypeCategoryEnum.EXPENDITURE,
+                protected = false,
+                sort = 7000,
+                needRelated = false,
+            ),
+        )
+
+        useCase { }
+
+        val healed = typeRepository.getRecordTypeById(100L)!!
+        assertThat(healed.typeLevel).isEqualTo(TypeLevelEnum.FIRST)
+        assertThat(healed.parentId).isEqualTo(-1L)
+        assertThat(healed.name).isEqualTo("早餐")
+    }
+
+    @Test
+    fun type_orphan_heal_failure_swallowed_and_gate_still_released() = runTest {
+        // 失败隔离：自愈抛异常被吞、不阻塞首屏、不连累后续 orphanScan
+        settingRepository.setTempKeys(
+            TempKeysModel(db9To10DataMigrated = true, preferenceSplit = true),
+        )
+        typeRepository.healThrowable = RuntimeException("heal boom")
+        var ready = false
+
+        useCase { ready = true } // 不得抛
+
+        assertThat(ready).isTrue()
+        assertThat(typeRepository.healOrphanSecondLevelTypesCount).isEqualTo(1)
+        assertThat(recordRepository.cleanupOrphanImageFilesCount).isEqualTo(1)
     }
 }

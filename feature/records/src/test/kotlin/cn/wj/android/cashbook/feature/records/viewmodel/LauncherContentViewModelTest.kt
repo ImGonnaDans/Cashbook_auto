@@ -27,6 +27,7 @@ import cn.wj.android.cashbook.core.model.model.TempKeysModel
 import cn.wj.android.cashbook.core.testing.repository.FakeBooksRepository
 import cn.wj.android.cashbook.core.testing.repository.FakeRecordRepository
 import cn.wj.android.cashbook.core.testing.repository.FakeSettingRepository
+import cn.wj.android.cashbook.core.testing.repository.FakeTypeRepository
 import cn.wj.android.cashbook.core.testing.util.TestDispatcherRule
 import cn.wj.android.cashbook.domain.usecase.RunStartupMaintenanceUseCase
 import com.google.common.truth.Truth.assertThat
@@ -49,6 +50,7 @@ class LauncherContentViewModelTest {
     private lateinit var recordRepository: FakeRecordRepository
     private lateinit var booksRepository: FakeBooksRepository
     private lateinit var settingRepository: FakeSettingRepository
+    private val typeRepository = FakeTypeRepository()
     private lateinit var viewModel: LauncherContentViewModel
 
     @Before
@@ -61,7 +63,11 @@ class LauncherContentViewModelTest {
             booksRepository = booksRepository,
             settingRepository = settingRepository,
             recordRepository = recordRepository,
-            runStartupMaintenance = RunStartupMaintenanceUseCase(recordRepository, settingRepository),
+            runStartupMaintenance = RunStartupMaintenanceUseCase(
+                recordRepository = recordRepository,
+                settingRepository = settingRepository,
+                typeRepository = typeRepository,
+            ),
         )
     }
 
@@ -82,7 +88,11 @@ class LauncherContentViewModelTest {
             booksRepository = booksRepository,
             settingRepository = settingRepository,
             recordRepository = repo,
-            runStartupMaintenance = RunStartupMaintenanceUseCase(repo, settingRepository),
+            runStartupMaintenance = RunStartupMaintenanceUseCase(
+                recordRepository = repo,
+                settingRepository = settingRepository,
+                typeRepository = typeRepository,
+            ),
         )
 
         val collectJob = launch(UnconfinedTestDispatcher()) { vm.uiState.collect() }
@@ -112,7 +122,11 @@ class LauncherContentViewModelTest {
             booksRepository = booksRepository,
             settingRepository = settingRepository,
             recordRepository = repo,
-            runStartupMaintenance = RunStartupMaintenanceUseCase(repo, settingRepository),
+            runStartupMaintenance = RunStartupMaintenanceUseCase(
+                recordRepository = repo,
+                settingRepository = settingRepository,
+                typeRepository = typeRepository,
+            ),
         )
 
         val collectJob = launch(UnconfinedTestDispatcher()) { vm.uiState.collect() }
@@ -140,7 +154,11 @@ class LauncherContentViewModelTest {
             booksRepository = booksRepository,
             settingRepository = settingRepository,
             recordRepository = repo,
-            runStartupMaintenance = RunStartupMaintenanceUseCase(repo, settingRepository),
+            runStartupMaintenance = RunStartupMaintenanceUseCase(
+                recordRepository = repo,
+                settingRepository = settingRepository,
+                typeRepository = typeRepository,
+            ),
         )
 
         val collectJob = launch(UnconfinedTestDispatcher()) { vm.uiState.collect() }
@@ -457,7 +475,11 @@ class LauncherContentViewModelTest {
             booksRepository = booksRepository,
             settingRepository = settingRepository,
             recordRepository = recordRepository,
-            runStartupMaintenance = RunStartupMaintenanceUseCase(recordRepository, settingRepository),
+            runStartupMaintenance = RunStartupMaintenanceUseCase(
+                recordRepository = recordRepository,
+                settingRepository = settingRepository,
+                typeRepository = typeRepository,
+            ),
         )
 
         // init 应将当前周期初始化为 currentMonthPeriod(now, d)（D=d 走周期，而非裸 ByMonth(now)）

@@ -19,31 +19,37 @@ package cn.wj.android.cashbook.domain.usecase
 import cn.wj.android.cashbook.core.common.ext.logger
 import cn.wj.android.cashbook.core.data.repository.RecordRepository
 import cn.wj.android.cashbook.core.data.repository.SettingRepository
+import cn.wj.android.cashbook.core.data.repository.TypeRepository
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 启动维护编排（从 [LauncherContentViewModel][cn.wj.android.cashbook.feature.records] init 收编）：
- * 迁移 / 净自付重算 / 图片 backfill / DB 压实 / 孤儿扫描。
+ * 类型不变量自愈 / 迁移 / 净自付重算 / 图片 backfill / DB 压实 / 孤儿扫描。
  *
  * [onFirstScreenReady] 在正确时机回调决定首屏放行——gate 语义与原 init 逐行等价、逻辑零改动：
+ * - 类型不变量自愈（[TypeRepository.healOrphanSecondLevelTypes]）每次启动**最先执行**、且先于 gate：
+ *   历史 bug 产生的「`parent_id=-1` 但二级」脏分类在首屏读取前即被提升为一级，首屏绝不呈现脏分类；失败隔离。
  * - db9To10 未迁移：先 [RecordRepository.migrateAfter9To10]（final_amount 全为 Migration9To10 DEFAULT 0，
  *   首屏须待迁移完成，**不包 try/catch**——异常逃逸触发全局 UncaughtExceptionHandler.finishAllActivity，
  *   标志未置位下次幂等重试）再放行；
  * - 已迁移：立即放行，后台按 tempKeys 标志跑净自付重算 / 图片 backfill / DB 压实。
  * - 孤儿扫描每次启动兜底（批量删账本/资产、编辑替换可能留孤儿文件）。
  *
- * **故意不注入 `@Dispatcher(IO) coroutineContext`（有别于本模块其他 UseCase 模板）**：5 个 repo 维护方法各自
+ * **故意不注入 `@Dispatcher(IO) coroutineContext`（有别于本模块其他 UseCase 模板）**：6 个 repo 维护方法各自
  * `withContext(IO)` 自切 IO，[onFirstScreenReady] 首屏 gate 回调须留在调用方 context（`viewModelScope.launch`
  * = Main）；若整体包 `withContext(IO)` 会把 gate 回调挪到 IO 线程。勿"补全模板"加 withContext（破坏 gate 时机）。
  */
 class RunStartupMaintenanceUseCase @Inject constructor(
     private val recordRepository: RecordRepository,
     private val settingRepository: SettingRepository,
+    private val typeRepository: TypeRepository,
 ) {
 
     suspend operator fun invoke(onFirstScreenReady: () -> Unit) {
+        // 类型不变量自愈（先于首屏 gate：首屏绝不呈现「parent_id=-1 但二级」的脏分类；幂等 + 失败隔离）
+        runCatchingMaintenance("typeOrphanHeal") { typeRepository.healOrphanSecondLevelTypes() }
         val tempKeys = settingRepository.tempKeysModel.first()
         if (!tempKeys.db9To10DataMigrated) {
             recordRepository.migrateAfter9To10()
