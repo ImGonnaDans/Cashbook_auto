@@ -55,7 +55,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cn.wj.android.cashbook.core.common.ApplicationInfo
 import cn.wj.android.cashbook.core.common.EMAIL_ADDRESS
 import cn.wj.android.cashbook.core.common.GITEE_HOMEPAGE
-import cn.wj.android.cashbook.core.common.GITEE_LATEST
 import cn.wj.android.cashbook.core.common.GITHUB_HOMEPAGE
 import cn.wj.android.cashbook.core.common.GITHUB_LATEST
 import cn.wj.android.cashbook.core.common.tools.jumpBrowser
@@ -351,8 +350,9 @@ internal fun AboutUsScreen(
                         Modifier.clickable(
                             onClick = rememberHapticOnClick {
                                 if (ApplicationInfo.isOffline) {
+                                    // 离线版本无法检查更新，直接跳转本 fork 仓库的发布页
                                     jumpBrowser(
-                                        url = if (uiState.useGitee) GITEE_LATEST else GITHUB_LATEST,
+                                        url = GITHUB_LATEST,
                                         chooserTitle = pleaseSelectWebBrowserText,
                                         context = currentContext,
                                     )

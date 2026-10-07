@@ -25,22 +25,18 @@ package cn.wj.android.cashbook.core.common
 /** 邮箱 */
 const val EMAIL_ADDRESS = "15555650921@163.com"
 
-/** Github 首页 */
-const val GITHUB_HOMEPAGE = "https://github.com/WangJie0822/Cashbook"
-const val GITHUB_LATEST = "https://github.com/WangJie0822/Cashbook/releases/latest"
+/** Github 首页（本 fork 仓库，检查更新的数据来源） */
+const val GITHUB_HOMEPAGE = "https://github.com/ImGonnaDans/Cashbook_auto"
+const val GITHUB_LATEST = "https://github.com/ImGonnaDans/Cashbook_auto/releases/latest"
 
-/** Gitee 首页 */
+/** Gitee 首页（上游原作者项目主页，仅作为关于页链接展示，不参与检查更新） */
 const val GITEE_HOMEPAGE = "https://gitee.com/wangjie0822/Cashbook"
-const val GITEE_LATEST = "https://gitee.com/wangjie0822/Cashbook/releases/latest"
 
-/** Gitee 用户名 */
-const val GITEE_OWNER = "wangjie0822"
+/** Github 用户名（本 fork 仓库所属账号） */
+const val GITHUB_OWNER = "ImGonnaDans"
 
-/** Github 用户名 */
-const val GITHUB_OWNER = "WangJie0822"
-
-/** 项目仓库名 */
-const val REPO_NAME = "Cashbook"
+/** 项目仓库名（本 fork 仓库名） */
+const val REPO_NAME = "Cashbook_auto"
 
 /** 更新日志文件路径 */
 const val CHANGELOG_FILE_PATH = "CHANGELOG.md"

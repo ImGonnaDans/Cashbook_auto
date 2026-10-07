@@ -23,11 +23,8 @@ package cn.wj.android.cashbook.core.network.datasource
  */
 object UrlDefinition {
 
-    /** 使用 Gitee api */
-    const val BASE_URL = "https://gitee.com/api/v5/"
-
-    /** 查询 Gitee 中的 Release 信息 */
-    const val GITEE_RELEASE_LIST = "https://gitee.com/api/v5/repos/{owner}/{repo}/releases"
+    /** Retrofit baseUrl，接口请求均使用完整 Url，此处仅作为占位 */
+    const val BASE_URL = "https://api.github.com/"
 
     /** 查询 Github 中的 Release 信息 */
     const val GITHUB_RELEASE_LIST = "https://api.github.com/repos/{owner}/{repo}/releases"

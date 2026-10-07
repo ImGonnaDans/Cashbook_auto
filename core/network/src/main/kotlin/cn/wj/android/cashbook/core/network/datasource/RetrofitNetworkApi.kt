@@ -29,15 +29,6 @@ import retrofit2.http.Query
  */
 interface RetrofitNetworkApi {
 
-    @GET(UrlDefinition.GITEE_RELEASE_LIST)
-    suspend fun giteeQueryReleaseList(
-        @Path("owner") owner: String,
-        @Path("repo") repo: String,
-        @Query("page") page: Int = 1,
-        @Query("per_page") perPage: Int = DEFAULT_PAGE_SIZE,
-        @Query("direction") direction: String = "desc",
-    ): List<GitReleaseEntity>
-
     @GET(UrlDefinition.GITHUB_RELEASE_LIST)
     suspend fun githubQueryReleaseList(
         @Path("owner") owner: String,

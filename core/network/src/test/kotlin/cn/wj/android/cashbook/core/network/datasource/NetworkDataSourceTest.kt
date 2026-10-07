@@ -23,8 +23,8 @@ import org.junit.Test
 /**
  * NetworkDataSource Release 筛选逻辑单元测试
  *
- * 说明：RetrofitNetworkApi 的 @GET 注解使用完整 URL（UrlDefinition.GITEE_RELEASE_LIST /
- * GITHUB_RELEASE_LIST），Retrofit 遇到完整 URL 时会忽略 baseUrl，因此无法通过
+ * 说明：RetrofitNetworkApi 的 @GET 注解使用完整 URL（UrlDefinition.GITHUB_RELEASE_LIST），
+ * Retrofit 遇到完整 URL 时会忽略 baseUrl，因此无法通过
  * MockWebServer 拦截请求。这里只针对 checkUpdate() 内的筛选逻辑进行纯函数测试。
  */
 class NetworkDataSourceTest {

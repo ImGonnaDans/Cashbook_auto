@@ -16,7 +16,6 @@
 
 package cn.wj.android.cashbook.core.network.datasource
 
-import cn.wj.android.cashbook.core.common.GITEE_OWNER
 import cn.wj.android.cashbook.core.common.GITHUB_OWNER
 import cn.wj.android.cashbook.core.common.REPO_NAME
 import cn.wj.android.cashbook.core.common.ext.logger
@@ -50,14 +49,15 @@ class NetworkDataSource @Inject constructor(
         .build()
         .create(RetrofitNetworkApi::class.java)
 
-    /** 根据是否使用 gitee [useGitee] 从不同数据源检查更新 */
+    /**
+     * 检查更新
+     *
+     * 说明：本 fork 未在 Gitee 建立镜像仓库，检查更新统一从本 fork 的 Github 仓库获取，
+     * [useGitee] 参数仅为兼容原有调用链保留，「切换数据源」开关不再影响更新来源。
+     */
     override suspend fun checkUpdate(useGitee: Boolean, canary: Boolean): GitReleaseEntity? {
-        val result = if (useGitee) {
-            networkApi.giteeQueryReleaseList(GITEE_OWNER, REPO_NAME)
-        } else {
-            networkApi.githubQueryReleaseList(GITHUB_OWNER, REPO_NAME)
-        }
-        logger().d("checkUpdate(useGitee = <$useGitee>), result = <$result>")
+        val result = networkApi.githubQueryReleaseList(GITHUB_OWNER, REPO_NAME)
+        logger().d("checkUpdate(useGitee = <$useGitee>), use Github source only")
         val release = result.firstOrNull {
             val name = it.name ?: ""
             name.startsWith("Release") || (canary && name.startsWith("Pre Release"))
