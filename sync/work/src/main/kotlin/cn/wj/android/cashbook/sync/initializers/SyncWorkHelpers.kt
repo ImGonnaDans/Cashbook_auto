@@ -208,7 +208,15 @@ internal fun Context.reminderNotificationBuilder(): NotificationCompat.Builder {
 }
 
 internal const val AutoRecordNotificationChannelID = "AutoRecordNotificationChannel"
-internal const val AutoRecordNotificationId = 20017
+
+/**
+ * 半自动记账通知 id 基址。
+ *
+ * 通知 id 由「基址 + 槽位下标」派生（槽位数见 `AUTO_RECORD_MAX_SLOTS`），占据 **40000 ~ 40003** 段；
+ * 与 2001x 的同步/升级通知、以及随资产数量增长的提醒 id 段（`ReminderNotificationBaseId + assetId * 2`）保持安全距离，
+ * 避免多笔提醒与其它通知 id 互相覆盖。
+ */
+internal const val AutoRecordNotificationBaseId = 40000
 
 /**
  * 半自动记账通知（监听通知匹配后弹出，点击进入编辑记录预填）。
